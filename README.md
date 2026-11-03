@@ -3,7 +3,9 @@
 Version 0.2.3
 
 Play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) on modern
-Windows without DOSBox. You need your own copy of the original game files.
+Windows without DOSBox. You need the original game files: your own copy, or
+the free download from Al Lowe, the game's designer (see *Where to get the
+game* below).
 
 The original game runs on Sierra's AGI engine (Adventure Game Interpreter,
 version 2.439 for this game). Black Cauldron Enhanced is a new AGI
@@ -70,10 +72,25 @@ game logic is unchanged; the interpreter adds modern controls on top.
   picture is rebuilt from the original's script buffer, so you continue
   exactly where you were.
 
+## Where to get the game
+
+Al Lowe offers The Black Cauldron as a free download on his website:
+<https://allowe.com/downloads/games.html> (the file
+`The Black Cauldron.zip`). He allows people to copy and share it, but he
+gives no support for it. The files in that download are the same as those
+of the original disks this project was tested with (version 2.00 of
+6/14/87, AGI 2.439).
+
+The game folder must contain at least `LOGDIR`, `PICDIR`, `VIEWDIR`,
+`SNDDIR`, `OBJECT`, `WORDS.TOK` and `VOL.0` to `VOL.2`. The other files
+of the original (`AGI`, `BC.COM`, the `*.OVL` files) are not needed, but
+may stay.
+
 ## Installation
 
 1. Copy `BC-Enhanced.exe` into the folder with the game files (or into a
-   folder directly below it).
+   folder directly below it). For the download from Al Lowe: unzip
+   `The Black Cauldron.zip` and put the exe in the folder with `LOGDIR`.
 2. Start `BC-Enhanced.exe`.
 
 On first start the program writes `bc-enhanced.ini` next to the exe, with an
