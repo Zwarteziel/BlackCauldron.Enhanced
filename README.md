@@ -12,7 +12,7 @@ Black Cauldron Enhanced is a new AGI interpreter written from scratch in C,
 with SDL3 for the window, sound and gamepads. It reads the game's original
 files and runs the game's own scripts. The game logic is unchanged. 
 
-## Black Cauldron Enhanced features:
+Black Cauldron Enhanced features:
 
 - **Modern controls**: you can use a mouse or controller to move Taran and
   execute commands with an action menu, instead of function keys.
