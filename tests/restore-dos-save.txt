@@ -1,0 +1,25 @@
+quiet
+cycles 230
+loud
+mkey DOWN
+mkey DOWN
+mkey DOWN
+mkey DOWN
+mkey DOWN
+mkey DOWN
+mkey DOWN
+mkey DOWN
+mkey DOWN
+mkey DOWN
+mkey DOWN
+mkey DOWN
+mkey ENTER
+key F7
+cycles 3
+dump
+cycles 40
+dump
+key F8
+cycles 3
+key TAB
+cycles 3

@@ -1,6 +1,6 @@
 # Black Cauldron Enhanced
 
-Version 0.2.1
+Version 0.2.2
 
 Play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) on modern
 Windows without DOSBox. You need your own copy of the original game files.
@@ -65,7 +65,10 @@ game logic is unchanged; the interpreter adds modern controls on top.
 - **Help (F1).** The original two help pages: keyboard (white) and, instead
   of the joystick page, a page about the mouse and the controller (black).
 - **Save and restore.** F5 / F7, 12 slots, files `bce-save-NN.sav` in the
-  game folder. Saved games of the original DOS version cannot be loaded yet.
+  game folder. Restore also lists the saved games of the original DOS
+  version (`BCSG.1` to `BCSG.12` in the game folder) and loads them: the
+  picture is rebuilt from the original's script buffer, so you continue
+  exactly where you were.
 
 ## Installation
 
@@ -121,10 +124,6 @@ Added by Black Cauldron Enhanced:
 
 `rightstick_speed` sets the speed of the pointer.
 Every button can be changed in the `[gamepad]` section of the ini file.
-
-## Not yet
-
-- Loading saved games of the original DOS version (`BCSG.*`).
 
 ## Building from source
 

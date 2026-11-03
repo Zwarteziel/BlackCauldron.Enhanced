@@ -292,44 +292,195 @@ static int slot_desc(Agi *e, int slot, char *desc) {
     return ok;
 }
 
-static int pick_slot(Agi *e, const char *title, int need_existing) {
+/* Slot picker. Rows 0..11 are our own slots; when ndos > 0, saved games of
+ * the original DOS version follow (return value 12 + i). */
+static int pick_slot(Agi *e, const char *title, int need_existing, int ndos, char dosdesc[][32]) {
     char descs[SAVE_SLOTS][32];
     int exist[SAVE_SLOTS];
     for (int i = 0; i < SAVE_SLOTS; i++) exist[i] = slot_desc(e, i, descs[i]);
+    int nrows = SAVE_SLOTS + (ndos ? ndos + 1 : 0);   /* +1: heading line */
     int sel = 0;
     e->modal = 1;
-    const int bx = 4 * 8 - 8, by = 3 * 8 - 5, bw = 32 * 8 + 16, bh = (SAVE_SLOTS + 3) * 8 + 10;
+    const int bx = 4 * 8 - 8, by = 2 * 8 - 5, bw = 32 * 8 + 16, bh = (nrows + 3) * 8 + 10;
     for (;;) {
         compose_screen(e);
         text_draw_box(e->screen, bx, by, bw, bh, 15, 4);
-        for (int k = 0; title[k]; k++) text_draw_char(e->screen, (4 + k) * 8, 3 * 8, (uint8_t)title[k], 0, 15);
-        for (int i = 0; i < SAVE_SLOTS; i++) {
+        for (int k = 0; title[k]; k++) text_draw_char(e->screen, (4 + k) * 8, 2 * 8, (uint8_t)title[k], 0, 15);
+        for (int r = 0; r < nrows; r++) {
             char line[40];
-            snprintf(line, sizeof line, "%2d. %-27s", i + 1, exist[i] ? descs[i] : "-");
-            int inv = i == sel;
+            int item = r;                         /* item index, -1 = heading */
+            if (r < SAVE_SLOTS) snprintf(line, sizeof line, "%2d. %-27s", r + 1, exist[r] ? descs[r] : "-");
+            else if (r == SAVE_SLOTS) { snprintf(line, sizeof line, "Saved with the original game:"); item = -1; }
+            else { item = r - 1; snprintf(line, sizeof line, "%2d. %-27s", r - SAVE_SLOTS, dosdesc[r - SAVE_SLOTS - 1]); }
+            int inv = item >= 0 && item == sel;
             for (int k = 0; line[k] && k < 31; k++)
-                text_draw_char(e->screen, (4 + k) * 8, (5 + i) * 8, (uint8_t)line[k], inv ? 15 : 0, inv ? 0 : 15);
+                text_draw_char(e->screen, (4 + k) * 8, (4 + r) * 8, (uint8_t)line[k], inv ? 15 : 0, inv ? 0 : 15);
         }
+        int nitems = SAVE_SLOTS + ndos;
         if (e->host->present) e->host->present(e->host);
         int k = e->host->poll_key(e->host);
         if (e->host->quit_requested(e->host)) { e->quit = 1; break; }
         if (!k) { e->host->sleep(e->host, 10); continue; }
         if (k == KEY_MOUSE_L) {
-            int r = e->mouse_y / 8 - 5;
-            if (r >= 0 && r < SAVE_SLOTS && e->mouse_x >= bx && e->mouse_x < bx + bw) { sel = r; k = KEY_ENTER; }
-            else continue;
+            int r = e->mouse_y / 8 - 4;
+            if (r >= 0 && r < nrows && r != SAVE_SLOTS && e->mouse_x >= bx && e->mouse_x < bx + bw) {
+                sel = r < SAVE_SLOTS ? r : r - 1; k = KEY_ENTER;
+            } else continue;
         }
         if (k == KEY_ESC || k == KEY_MOUSE_R) break;
-        if (k == KEY_UP) sel = (sel + SAVE_SLOTS - 1) % SAVE_SLOTS;
-        if (k == KEY_DOWN) sel = (sel + 1) % SAVE_SLOTS;
+        if (k == KEY_UP) sel = (sel + nitems - 1) % nitems;
+        if (k == KEY_DOWN) sel = (sel + 1) % nitems;
         if (k == KEY_ENTER) {
-            if (need_existing && !exist[sel]) continue;
+            if (need_existing && sel < SAVE_SLOTS && !exist[sel]) continue;
             e->modal = 0;
             return sel;
         }
     }
     e->modal = 0;
     return -1;
+}
+
+/* ---------------------------------------------- original DOS saved games */
+#define MAX_DOS_SAVES 6
+
+static void dos_save_path(Agi *e, int n, char *out, int len) {
+    snprintf(out, len, "%s/BCSG.%d", e->dir, n);
+    FILE *f = fopen(out, "rb");
+    if (f) { fclose(f); return; }
+    snprintf(out, len, "%s/bcsg.%d", e->dir, n);
+}
+
+/* Finds BCSG.1 .. BCSG.12 and reads their descriptions. */
+static int find_dos_saves(Agi *e, int nums[], char desc[][32]) {
+    int n = 0;
+    for (int i = 1; i <= 12 && n < MAX_DOS_SAVES; i++) {
+        char path[1100];
+        dos_save_path(e, i, path, sizeof path);
+        FILE *f = fopen(path, "rb");
+        if (!f) continue;
+        char d[32] = {0};
+        if (fread(d, 1, 31, f) == 31) {
+            d[31] = 0;
+            for (int k = 0; d[k]; k++) if ((unsigned char)d[k] < 32 || (unsigned char)d[k] > 126) d[k] = ' ';
+            snprintf(desc[n], 32, "%s", d[0] ? d : "(no description)");
+            nums[n++] = i;
+        }
+        fclose(f);
+    }
+    return n;
+}
+
+static int rd16(const uint8_t *p) { return p[0] | (p[1] << 8); }
+
+/* Loads a saved game of the original interpreter (AGI 2.4xx format):
+ * a 31-byte description, then five blocks with a 16-bit length each:
+ * game state, animated objects (43 bytes each), inventory, script buffer
+ * (the commands that built the current picture) and logic scan starts. */
+static int load_dos_save(Agi *e, const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    static uint8_t buf[65536];
+    int len = (int)fread(buf, 1, sizeof buf, f);
+    fclose(f);
+    const uint8_t *blk[5]; int blen[5];
+    int p = 31;
+    for (int i = 0; i < 5; i++) {
+        if (p + 2 > len) return 0;
+        blen[i] = rd16(buf + p);
+        blk[i] = buf + p + 2;
+        p += 2 + blen[i];
+        if (p > len) return 0;
+    }
+    const uint8_t *st = blk[0];
+    if (blen[0] < 330 || blen[1] % 43) return 0;
+
+    /* game state: 7-byte game id, 256 variables, 256 flags (bit 7 first) */
+    uint8_t keep20 = e->var[V_COMPUTER], keep22 = e->var[V_SOUNDGEN], keep26 = e->var[V_MONITOR];
+    memcpy(e->var, st + 7, 256);
+    for (int i = 0; i < 256; i++) e->flag[i] = (st[263 + i / 8] >> (7 - i % 8)) & 1;
+    e->horizon = rd16(st + 299);
+    e->block_on = rd16(st + 301) != 0;
+    e->bx1 = rd16(st + 303); e->by1 = rd16(st + 305); e->bx2 = rd16(st + 307); e->by2 = rd16(st + 309);
+    e->player_control = rd16(st + 311) != 0;
+    /* this interpreter's machine (the save may come from a Tandy) */
+    e->var[V_COMPUTER] = keep20; e->var[V_SOUNDGEN] = keep22; e->var[V_MONITOR] = keep26;
+
+    /* animated objects */
+    int nrec = blen[1] / 43;
+    if (nrec > MAX_OBJ) nrec = MAX_OBJ;
+    if (nrec > e->nobj) e->nobj = nrec;
+    for (int i = 0; i < nrec; i++) {
+        const uint8_t *r = blk[1] + i * 43;
+        ScreenObj *o = &e->obj[i];
+        obj_reset(e, o, i);
+        o->step_count = r[0]; o->step_time = r[1];
+        o->x = (int16_t)rd16(r + 3); o->y = (int16_t)rd16(r + 5);
+        o->view = r[7]; o->loop = r[10]; o->nloops = r[11]; o->cel = r[14]; o->ncels = r[15];
+        o->xprev = (int16_t)rd16(r + 22); o->yprev = (int16_t)rd16(r + 24);
+        o->xsize = (int16_t)rd16(r + 26); o->ysize = (int16_t)rd16(r + 28);
+        o->step_size = r[30]; o->cycle_time = r[31]; o->cycle_count = r[32];
+        o->dir = r[33]; o->motion = r[34]; o->cycle = r[35]; o->priority = r[36];
+        o->flags = (uint16_t)rd16(r + 37);
+        const uint8_t *pm = r + 39;
+        switch (o->motion) {
+        case MOTION_WANDER: o->wander_count = pm[0]; break;
+        case MOTION_FOLLOW: o->follow_step = pm[0]; o->follow_flag = pm[1]; o->follow_count = pm[2]; break;
+        case MOTION_MOVE: o->move_x = pm[0]; o->move_y = pm[1]; o->move_step = pm[2]; o->move_flag = pm[3]; break;
+        }
+        if (o->cycle == CYCLE_END_LOOP || o->cycle == CYCLE_REV_LOOP) o->loop_flag = pm[3];
+        if (o->flags & (F_ANIMATED | F_DRAWN)) {
+            agi_load_view(e, o->view);
+            View *v = &e->view[o->view];
+            if (v->loaded && o->loop < v->nloops && o->cel < v->loop[o->loop].ncels) {
+                o->xsize = (int16_t)v->loop[o->loop].cel[o->cel].w;
+                o->ysize = (int16_t)v->loop[o->loop].cel[o->cel].h;
+            }
+        }
+    }
+
+    /* inventory: 3 bytes per object (name offset, room) */
+    for (int i = 0; i < e->nitems && i * 3 + 2 < blen[2]; i++) e->item_room[i] = blk[2][i * 3 + 2];
+
+    /* unload all logics but 0; the scan start table says which were loaded */
+    for (int i = 1; i < 256; i++)
+        if (e->logic[i].loaded) { free(e->logic[i].data); memset(&e->logic[i], 0, sizeof e->logic[i]); }
+
+    /* script buffer: rebuild the picture as the original did */
+    memset(e->pic_vis, 15, sizeof e->pic_vis);
+    memset(e->pic_pri, 4, sizeof e->pic_pri);
+    const uint8_t *sb = blk[3];
+    int nent = rd16(st + 321);
+    if (nent * 2 > blen[3]) nent = blen[3] / 2;
+    for (int i = 0; i < nent; i++) {
+        int type = sb[i * 2], num = sb[i * 2 + 1];
+        switch (type) {
+        case 0: agi_load_logic(e, num); break;
+        case 1: agi_load_view(e, num); break;
+        case 4: pic_draw(e, num, 1); break;
+        case 8: pic_draw(e, num, 0); break;
+        case 5:
+            if (i + 3 < nent) {
+                const uint8_t *a = sb + (i + 1) * 2;
+                obj_add_to_pic(e, a[0], a[1], a[2], a[3], a[4], a[5] & 15, a[5] >> 4);
+                i += 3;
+            }
+            break;
+        default: break;   /* load.pic, load.sound, discard.*: nothing to do */
+        }
+    }
+    memcpy(e->shown_vis, e->pic_vis, sizeof e->shown_vis);
+    e->pic_shown = 1;
+
+    /* logic scan starts: (logic, offset) pairs, 0xFFFF ends */
+    for (int i = 0; i + 3 < blen[4]; i += 4) {
+        int ln = rd16(blk[4] + i), off = rd16(blk[4] + i + 2);
+        if (ln == 0xFFFF) break;
+        if (ln > 255) continue;
+        agi_load_logic(e, ln);
+        if (e->logic[ln].loaded && off < e->logic[ln].code_len) e->logic[ln].scan_start = off;
+    }
+    memset(e->text_used, 0, sizeof e->text_used);
+    return 1;
 }
 
 typedef struct {
@@ -348,7 +499,7 @@ typedef struct {
 } SaveState;
 
 void agi_save_game(Agi *e) {
-    int slot = pick_slot(e, "Save the game in which slot?", 0);
+    int slot = pick_slot(e, "Save the game in which slot?", 0, 0, NULL);
     if (slot < 0) return;
     char desc[41] = {0};
     char old[32];
@@ -390,8 +541,26 @@ void agi_save_game(Agi *e) {
 }
 
 int agi_restore_game(Agi *e) {
-    int slot = pick_slot(e, "Restore which saved game?", 1);
+    int dosnum[MAX_DOS_SAVES];
+    char dosdesc[MAX_DOS_SAVES][32];
+    int ndos = find_dos_saves(e, dosnum, dosdesc);
+    int slot = pick_slot(e, "Restore which saved game?", 1, ndos, dosdesc);
     if (slot < 0) return 0;
+    if (slot >= SAVE_SLOTS) {
+        char dpath[1100];
+        dos_save_path(e, dosnum[slot - SAVE_SLOTS], dpath, sizeof dpath);
+        if (!load_dos_save(e, dpath)) {
+            text_print(e, "This saved game cannot be read.", -1, -1, 0, 1);
+            return 0;
+        }
+        e->walk_active = 0;
+        e->win_open = 0;
+        e->sound_flag = -1;
+        if (e->host->sound_stop) e->host->sound_stop(e->host);
+        e->flag[FL_RESTORED] = 1;
+        e->exit_all = 1;
+        return 1;
+    }
     char path[1024];
     slot_path(e, slot, path, sizeof path);
     FILE *f = fopen(path, "rb");
