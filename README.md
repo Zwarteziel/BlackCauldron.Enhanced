@@ -1,6 +1,6 @@
 # Black Cauldron Enhanced
 
-Version 0.2.0
+Version 0.2.1
 
 Play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) on modern
 Windows without DOSBox. You need your own copy of the original game files.
@@ -110,14 +110,16 @@ Added by Black Cauldron Enhanced:
 | Gamepad | Game |
 |---|---|
 | Left stick / d-pad | Walk (8 directions, while held); in menus: navigate |
-| A | Do (in windows and menus: OK) |
-| X | Look |
-| Y | Use the selected object |
-| Back / View | Select an object |
-| LB / RB | Previous / next object, without opening the inventory |
-| B | Cancel / Esc |
-| Start | Menu bar |
+| Right stick | Move the mouse pointer |
+| A | Left click at the pointer: Taran walks there (in menus and windows: OK) |
+| X | Do |
+| Y | Select an object |
+| B | Use the selected object (in menus and windows: back) |
+| RB | Look |
+| LB / Start | Menu bar (Esc) |
+| Back / View | Inventory |
 
+`rightstick_speed` sets the speed of the pointer.
 Every button can be changed in the `[gamepad]` section of the ini file.
 
 ## Not yet

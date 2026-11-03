@@ -31,6 +31,7 @@ typedef struct {
     int mouse;
     int pointer;              /* 0 windows, 1 agi, 2 sci, 3 agi-triangle */
     float deadzone;
+    float rstick_speed;       /* right stick pointer speed, 0.25 - 4 */
     char pad[PAD_COUNT][32];
 } Config;
 
@@ -44,14 +45,15 @@ static void config_defaults(Config *c) {
     c->mouse = 1;
     c->pointer = 1;
     c->deadzone = 0.30f;
-    strcpy(c->pad[PAD_A], "do");
-    strcpy(c->pad[PAD_B], "cancel");
-    strcpy(c->pad[PAD_X], "look");
-    strcpy(c->pad[PAD_Y], "use");
-    strcpy(c->pad[PAD_BACK], "select");
+    strcpy(c->pad[PAD_A], "click");
+    strcpy(c->pad[PAD_B], "use");
+    strcpy(c->pad[PAD_X], "do");
+    strcpy(c->pad[PAD_Y], "select");
+    strcpy(c->pad[PAD_BACK], "inventory");
     strcpy(c->pad[PAD_START], "menu");
-    strcpy(c->pad[PAD_LB], "prev_item");
-    strcpy(c->pad[PAD_RB], "next_item");
+    strcpy(c->pad[PAD_LB], "menu");
+    strcpy(c->pad[PAD_RB], "look");
+    c->rstick_speed = 1.0f;
 }
 
 static char *trim(char *s) {
@@ -148,9 +150,14 @@ static void config_write(const char *path, const Config *c) {
         "; 1986); hold = walk while the key is held down.\n"
         "arrow_keys=%s\n\n"
         "[gamepad]\n"
-        "; Left stick and d-pad walk. Actions for the buttons: look, do, use,\n"
-        "; select, menu, cancel, enter, inventory, prev_item, next_item, save,\n"
-        "; restore, pause, none.\n",
+        "; Left stick and d-pad walk; the right stick moves the mouse pointer.\n"
+        "; Actions for the buttons:\n"
+        ";   click       left mouse click at the pointer (Taran walks there)\n"
+        ";   look, do, use, select   the actions of the game (F8, F6, F4, F3)\n"
+        ";   menu        the menu bar (Esc); in menus and windows: back\n"
+        ";   cancel, enter, inventory, prev_item, next_item, save, restore,\n"
+        ";   pause, none\n"
+        "; In menus and windows, A chooses and B goes back.\n",
         c->gamedir, c->fullscreen, c->width, c->height, shader_to_str(c->shader),
         c->monitor_vga ? "vga" : "ega",
         c->scale_mode == 0 ? "nearest" : c->scale_mode == 1 ? "linear" : "sharp",
@@ -158,6 +165,7 @@ static void config_write(const char *path, const Config *c) {
         c->sound == 3 ? "tandy" : c->sound == 1 ? "pcspeaker" : "off", c->volume, c->mouse, c->pointer == 1 ? "agi" : c->pointer == 2 ? "sci" : c->pointer == 3 ? "agi-triangle" : "windows", wf, c->arrows_hold ? "hold" : "classic");
     for (int i = 0; i < PAD_COUNT; i++) fprintf(f, "%s=%s\n", pad_keys[i], c->pad[i]);
     fprintf(f, "; stick dead zone, 0.1 - 0.8\ndeadzone=%g\n", c->deadzone);
+    fprintf(f, "; speed of the mouse pointer on the right stick, 0.25 - 4\nrightstick_speed=%g\n", c->rstick_speed);
     fclose(f);
 }
 
@@ -206,6 +214,7 @@ static void config_load(Config *c, const char *path) {
             }
         } else if (!strcmp(section, "gamepad")) {
             if (!strcmp(k, "deadzone")) c->deadzone = (float)atof(v);
+            else if (!strcmp(k, "rightstick_speed")) c->rstick_speed = (float)atof(v);
             else for (int i = 0; i < PAD_COUNT; i++) if (!strcmp(k, pad_keys[i])) snprintf(c->pad[i], sizeof c->pad[i], "%s", v);
         }
     }
@@ -214,6 +223,16 @@ static void config_load(Config *c, const char *path) {
     if (c->volume > 100) c->volume = 100;
     if (c->deadzone < 0.1f) c->deadzone = 0.1f;
     if (c->deadzone > 0.8f) c->deadzone = 0.8f;
+    if (c->rstick_speed < 0.25f) c->rstick_speed = 0.25f;
+    if (c->rstick_speed > 4.0f) c->rstick_speed = 4.0f;
+    /* the button layout of versions before 0.2.1 becomes the new one */
+    static const char *old_layout[PAD_COUNT] = {"do", "cancel", "look", "use", "select", "menu", "prev_item", "next_item"};
+    int is_old = 1;
+    for (int i = 0; i < PAD_COUNT; i++) if (SDL_strcasecmp(c->pad[i], old_layout[i])) is_old = 0;
+    if (is_old) {
+        Config d; config_defaults(&d);
+        for (int i = 0; i < PAD_COUNT; i++) snprintf(c->pad[i], sizeof c->pad[i], "%s", d.pad[i]);
+    }
 }
 
 /* change one key in the ini file, keeping everything else */
@@ -278,6 +297,9 @@ typedef struct {
     int pad_dir;               /* current direction from stick/d-pad */
     int pad_btn[SDL_GAMEPAD_BUTTON_COUNT];
     uint64_t nav_next;         /* auto-repeat of navigation in menus */
+    int stick_pointer;         /* 1 = the right stick moved the pointer last */
+    float ptr_fx, ptr_fy;      /* pointer position with sub-pixel precision */
+    uint64_t ptr_last_ns;
     int nav_dir;
     int arrows_down[9];
     SDL_AudioStream *audio;
@@ -580,14 +602,25 @@ static void cycle_item(App *a, int step) {
     set_status(a, msg);
 }
 
-static void do_action(App *a, const char *act, int down) {
+/* a left mouse click at the pointer, as if the mouse was used */
+static void pointer_click(App *a) {
+    Agi *e = a->e;
+    if (e->mouse_x < 0 || e->mouse_y < 0) { e->mouse_x = SCR_W / 2; e->mouse_y = SCR_H / 2; }
+    push_key(a, KEY_MOUSE_L);
+}
+
+static void do_action(App *a, int button, const char *act, int down) {
     Agi *e = a->e;
     if (!down) return;
     if (e->modal) {
-        if (!SDL_strcasecmp(act, "cancel") || !SDL_strcasecmp(act, "menu")) push_key(a, KEY_ESC);
-        else if (SDL_strcasecmp(act, "none")) push_key(a, KEY_ENTER);
+        /* in menus and windows: A chooses, B and the menu buttons go back */
+        if (!SDL_strcasecmp(act, "none")) return;
+        if (button == PAD_B || !SDL_strcasecmp(act, "cancel") || !SDL_strcasecmp(act, "menu")) push_key(a, KEY_ESC);
+        else if (!SDL_strcasecmp(act, "click") && a->stick_pointer) pointer_click(a);
+        else push_key(a, KEY_ENTER);
         return;
     }
+    if (!SDL_strcasecmp(act, "click")) { pointer_click(a); return; }
     if (!SDL_strcasecmp(act, "look")) push_key(a, KEY_F(8));
     else if (!SDL_strcasecmp(act, "do")) push_key(a, KEY_F(6));
     else if (!SDL_strcasecmp(act, "use")) push_key(a, KEY_F(4));
@@ -651,8 +684,43 @@ static int pad_direction(App *a) {
     return tbl[dy + 1][dx + 1];
 }
 
+/* The right stick moves the mouse pointer; the speed grows with the
+ * deflection (full deflection crosses the screen in about 1.3 seconds). */
+static void move_pointer_with_stick(App *a) {
+    Agi *e = a->e;
+    uint64_t now = SDL_GetTicksNS();
+    double dt = a->ptr_last_ns ? (now - a->ptr_last_ns) / 1e9 : 0;
+    a->ptr_last_ns = now;
+    if (dt > 0.1) dt = 0.1;
+    float x = SDL_GetGamepadAxis(a->pad, SDL_GAMEPAD_AXIS_RIGHTX) / 32767.0f;
+    float y = SDL_GetGamepadAxis(a->pad, SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f;
+    float m = SDL_sqrtf(x * x + y * y);
+    const float dz = 0.2f;
+    if (m < dz) return;
+    float k = (m - dz) / (1 - dz);
+    if (k > 1) k = 1;
+    float speed = 250.0f * a->cfg.rstick_speed * k * k / m;   /* screen pixels per second */
+    if (!a->stick_pointer || e->mouse_x < 0) {
+        a->ptr_fx = e->mouse_x >= 0 ? (float)e->mouse_x : SCR_W / 2.0f;
+        a->ptr_fy = e->mouse_y >= 0 ? (float)e->mouse_y : SCR_H / 2.0f;
+    }
+    a->stick_pointer = 1;
+    a->ptr_fx = SDL_clamp(a->ptr_fx + x * speed * (float)dt, 0, SCR_W - 1);
+    a->ptr_fy = SDL_clamp(a->ptr_fy + y * speed * (float)dt * 0.85f, 0, SCR_H - 1);
+    e->mouse_x = (int)a->ptr_fx;
+    e->mouse_y = (int)a->ptr_fy;
+    if (!a->cfg.pointer) {
+        /* normal Windows pointer: move it to the same place */
+        float dens = SDL_GetWindowPixelDensity(a->win);
+        if (dens <= 0) dens = 1;
+        SDL_WarpMouseInWindow(a->win, (a->dst.x + (e->mouse_x + 0.5f) * a->dst.w / SCR_W) / dens,
+                              (a->dst.y + (e->mouse_y + 0.5f) * a->dst.h / SCR_H) / dens);
+    }
+}
+
 static void poll_pad(App *a) {
     if (!a->pad) return;
+    move_pointer_with_stick(a);
     int d = pad_direction(a);
     Agi *e = a->e;
     if (e->modal) {
@@ -661,7 +729,7 @@ static void poll_pad(App *a) {
         uint64_t now = SDL_GetTicks();
         if (d != a->nav_dir) {
             a->nav_dir = d;
-            if (d) { push_key(a, nav_key[d]); a->nav_next = now + 350; }
+            if (d) { push_key(a, nav_key[d]); a->nav_next = now + 350; a->stick_pointer = 0; }
         } else if (d && now >= a->nav_next) {
             push_key(a, nav_key[d]); a->nav_next = now + 120;
         }
@@ -716,11 +784,13 @@ static void handle_event(App *a, SDL_Event *ev) {
         break;
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN: case SDL_EVENT_GAMEPAD_BUTTON_UP: {
         int i = pad_button_index((SDL_GamepadButton)ev->gbutton.button);
-        if (i >= 0) do_action(a, a->cfg.pad[i], ev->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN);
+        if (i >= 0) do_action(a, i, a->cfg.pad[i], ev->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN);
         break;
     }
     case SDL_EVENT_MOUSE_MOTION:
         if (a->cfg.mouse) to_screen(a, ev->motion.x, ev->motion.y, &e->mouse_x, &e->mouse_y);
+        if (!a->cfg.pointer && a->stick_pointer) break;   /* our own warp */
+        a->stick_pointer = 0;
         break;
     case SDL_EVENT_WINDOW_MOUSE_LEAVE:
         e->mouse_x = e->mouse_y = -1;
@@ -811,6 +881,36 @@ static int host_poll_key(AgiHost *h) {
     static int test_mouse = 0;
     if (!test_mouse) { const char *m = getenv("BCE_TEST_MOUSE"); test_mouse = 1;
         if (m) sscanf(m, "%d,%d", &a->e->mouse_x, &a->e->mouse_y); }
+    /* test hook: BCE_TEST_VPAD=1 drives a virtual gamepad (see tests/) */
+    static int vpad_init = 0;
+    static SDL_Joystick *vjoy = NULL;
+    if (!vpad_init) {
+        vpad_init = 1;
+        if (getenv("BCE_TEST_VPAD")) {
+            SDL_VirtualJoystickDesc desc;
+            SDL_INIT_INTERFACE(&desc);
+            desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
+            desc.naxes = SDL_GAMEPAD_AXIS_COUNT;
+            desc.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+            desc.name = "Test pad";
+            SDL_JoystickID id = SDL_AttachVirtualJoystick(&desc);
+            vjoy = SDL_OpenJoystick(id);
+            fprintf(stderr, "[vpad] id %u joy %p gamepad %d err %s\n", (unsigned)id, (void *)vjoy, SDL_IsGamepad(id), SDL_GetError());
+        }
+    }
+    if (vjoy) {
+        uint64_t ms = SDL_GetTicks();
+        int a_down = (ms > 2000 && ms < 2100) || (ms > 3000 && ms < 3100) || (ms > 4000 && ms < 4100) ||
+                     (ms > 5000 && ms < 5100) || (ms > 9000 && ms < 9100);
+        SDL_SetJoystickVirtualButton(vjoy, SDL_GAMEPAD_BUTTON_SOUTH, a_down);
+        SDL_SetJoystickVirtualAxis(vjoy, SDL_GAMEPAD_AXIS_RIGHTX, (ms > 7000 && ms < 7400) ? -32767 : 0);
+        SDL_SetJoystickVirtualAxis(vjoy, SDL_GAMEPAD_AXIS_RIGHTY, (ms > 7000 && ms < 7300) ? 32767 : 0);
+        static int reported = 0;
+        if (ms > 8000 && !reported) { reported = 1;
+            fprintf(stderr, "[vpad] room %d pointer %d,%d ego %d,%d\n", a->e->var[0], a->e->mouse_x, a->e->mouse_y, a->e->obj[0].x, a->e->obj[0].y); }
+        if (ms > 13500 && reported == 1) { reported = 2;
+            fprintf(stderr, "[vpad] room %d pointer %d,%d ego %d,%d (after A)\n", a->e->var[0], a->e->mouse_x, a->e->mouse_y, a->e->obj[0].x, a->e->obj[0].y); }
+    }
     static double test_quit = -1;
     if (test_quit < 0) { const char *q = getenv("BCE_TEST_QUIT"); test_quit = q ? atof(q) : 0; }
     if (test_quit > 0 && SDL_GetTicks() > test_quit) { screenshot(a); a->quit = 1; }

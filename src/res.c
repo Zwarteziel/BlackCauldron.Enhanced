@@ -94,11 +94,11 @@ int agi_load_logic(Agi *e, int n) {
             "Click the bar at the top for the menus.", /* row 8 */
             "Right-click or ESC closes a menu.",       /* row 9 */
             "Controller: stick or d-pad moves Taran.", /* row 11 */
-            "A = Do     X = Look     Y = Use",         /* row 12 */
-            "View = Select an object to use.",         /* row 13 */
-            "LB / RB = previous / next object.",       /* row 15 */
-            "Start = menus.  B = back to the game.",   /* row 16 */
-            "In menus and windows, A means ENTER."     /* row 17 */
+            "Right stick moves the pointer, A walks.", /* row 12 */
+            "X = Do   Y = Select   B = Use",           /* row 13 */
+            "RB = Look   LB or Start = menus",         /* row 15 */
+            "View = inventory.",                       /* row 16 */
+            "In menus: A chooses, B goes back."        /* row 17 */
         };
         for (int i = 0; i < 11; i++) L->msg[21 + i] = (char *)help[i];
         /* show "Press + / - to make sound louder / softer" on the keyboard
