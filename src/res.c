@@ -101,6 +101,10 @@ int agi_load_logic(Agi *e, int n) {
             "In menus: A chooses, B goes back."        /* row 17 */
         };
         for (int i = 0; i < 11; i++) L->msg[21 + i] = (char *)help[i];
+        if (e->pad_swap) {
+            L->msg[26] = (char *)"Controller: R-stick or d-pad walks.";
+            L->msg[27] = (char *)"Left stick moves the pointer, A walks.";
+        }
         /* show "Press + / - to make sound louder / softer" on the keyboard
          * page: the game shows it only on a Tandy 1000 (v20 == 2), but here
          * + and - always set the volume. if equaln(20,2) -> equaln(20,0) */

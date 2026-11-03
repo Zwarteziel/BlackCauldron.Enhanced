@@ -31,7 +31,8 @@ typedef struct {
     int mouse;
     int pointer;              /* 0 windows, 1 agi, 2 sci, 3 agi-triangle */
     float deadzone;
-    float rstick_speed;       /* right stick pointer speed, 0.25 - 4 */
+    float rstick_speed;       /* pointer speed on the stick, 0.25 - 4 */
+    int pointer_left;         /* 1 = left stick moves the pointer, right stick walks */
     char pad[PAD_COUNT][32];
 } Config;
 
@@ -150,7 +151,7 @@ static void config_write(const char *path, const Config *c) {
         "; 1986); hold = walk while the key is held down.\n"
         "arrow_keys=%s\n\n"
         "[gamepad]\n"
-        "; Left stick and d-pad walk; the right stick moves the mouse pointer.\n"
+        "; The d-pad and one stick walk, the other stick moves the mouse pointer.\n"
         "; Actions for the buttons:\n"
         ";   click       left mouse click at the pointer (Taran walks there)\n"
         ";   look, do, use, select   the actions of the game (F8, F6, F4, F3)\n"
@@ -165,7 +166,9 @@ static void config_write(const char *path, const Config *c) {
         c->sound == 3 ? "tandy" : c->sound == 1 ? "pcspeaker" : "off", c->volume, c->mouse, c->pointer == 1 ? "agi" : c->pointer == 2 ? "sci" : c->pointer == 3 ? "agi-triangle" : "windows", wf, c->arrows_hold ? "hold" : "classic");
     for (int i = 0; i < PAD_COUNT; i++) fprintf(f, "%s=%s\n", pad_keys[i], c->pad[i]);
     fprintf(f, "; stick dead zone, 0.1 - 0.8\ndeadzone=%g\n", c->deadzone);
-    fprintf(f, "; speed of the mouse pointer on the right stick, 0.25 - 4\nrightstick_speed=%g\n", c->rstick_speed);
+    fprintf(f, "; Which stick moves the mouse pointer: right (the left stick walks) or\n"
+               "; left (the right stick walks)\npointer_stick=%s\n", c->pointer_left ? "left" : "right");
+    fprintf(f, "; speed of the mouse pointer on its stick, 0.25 - 4\nrightstick_speed=%g\n", c->rstick_speed);
     fclose(f);
 }
 
@@ -215,6 +218,7 @@ static void config_load(Config *c, const char *path) {
         } else if (!strcmp(section, "gamepad")) {
             if (!strcmp(k, "deadzone")) c->deadzone = (float)atof(v);
             else if (!strcmp(k, "rightstick_speed")) c->rstick_speed = (float)atof(v);
+            else if (!strcmp(k, "pointer_stick")) c->pointer_left = !SDL_strcasecmp(v, "left");
             else for (int i = 0; i < PAD_COUNT; i++) if (!strcmp(k, pad_keys[i])) snprintf(c->pad[i], sizeof c->pad[i], "%s", v);
         }
     }
@@ -672,8 +676,9 @@ static int pad_direction(App *a) {
     int dn = SDL_GetGamepadButton(a->pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN);
     int lf = SDL_GetGamepadButton(a->pad, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
     int rt = SDL_GetGamepadButton(a->pad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
-    float x = SDL_GetGamepadAxis(a->pad, SDL_GAMEPAD_AXIS_LEFTX) / 32767.0f;
-    float y = SDL_GetGamepadAxis(a->pad, SDL_GAMEPAD_AXIS_LEFTY) / 32767.0f;
+    int pl = a->cfg.pointer_left;   /* walking stick: left, or right when swapped */
+    float x = SDL_GetGamepadAxis(a->pad, pl ? SDL_GAMEPAD_AXIS_RIGHTX : SDL_GAMEPAD_AXIS_LEFTX) / 32767.0f;
+    float y = SDL_GetGamepadAxis(a->pad, pl ? SDL_GAMEPAD_AXIS_RIGHTY : SDL_GAMEPAD_AXIS_LEFTY) / 32767.0f;
     if (SDL_sqrtf(x * x + y * y) >= a->cfg.deadzone) {
         float ang = SDL_atan2f(x, -y) * 180.0f / SDL_PI_F;   /* 0 = up, clockwise */
         if (ang < 0) ang += 360;
@@ -692,8 +697,9 @@ static void move_pointer_with_stick(App *a) {
     double dt = a->ptr_last_ns ? (now - a->ptr_last_ns) / 1e9 : 0;
     a->ptr_last_ns = now;
     if (dt > 0.1) dt = 0.1;
-    float x = SDL_GetGamepadAxis(a->pad, SDL_GAMEPAD_AXIS_RIGHTX) / 32767.0f;
-    float y = SDL_GetGamepadAxis(a->pad, SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f;
+    int pl = a->cfg.pointer_left;   /* pointer stick: right, or left when swapped */
+    float x = SDL_GetGamepadAxis(a->pad, pl ? SDL_GAMEPAD_AXIS_LEFTX : SDL_GAMEPAD_AXIS_RIGHTX) / 32767.0f;
+    float y = SDL_GetGamepadAxis(a->pad, pl ? SDL_GAMEPAD_AXIS_LEFTY : SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f;
     float m = SDL_sqrtf(x * x + y * y);
     const float dz = 0.2f;
     if (m < dz) return;
@@ -1042,6 +1048,7 @@ int main(int argc, char **argv) {
     a->host.sound_stop = host_sound_stop;
     eng.host = &a->host;
     for (int i = 0; i < 4; i++) eng.walk_first[i] = a->cfg.walk_first[i];
+    eng.pad_swap = a->cfg.pointer_left;
     eng.rng = (uint32_t)SDL_GetTicks() ^ 0x5EED1986u;
     if (!a->gl && !a->cfg.renderer_sdl && a->cfg.shader != SHADER_NONE)
         set_status(a, "OpenGL 3.3 not available: CRT shader off");

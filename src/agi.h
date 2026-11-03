@@ -211,6 +211,7 @@ typedef struct Agi {
     int walk_stuck;
     int walk_then_key;        /* key to send after walking, or 0 */
     int walk_first[4];        /* look, do, use, select: walk to the click first */
+    int pad_swap;             /* 1 = left stick moves the pointer (help text) */
     int sound_mode;           /* 1 = PC speaker, 3 = PCjr/Tandy (value for var 22) */
     int haskey_waits;         /* consecutive have.key polls without a key */
     int walk_tx, walk_ty;

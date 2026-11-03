@@ -1,6 +1,6 @@
 # Black Cauldron Enhanced
 
-Version 0.2.2
+Version 0.2.3
 
 Play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) on modern
 Windows without DOSBox. You need your own copy of the original game files.
@@ -122,7 +122,8 @@ Added by Black Cauldron Enhanced:
 | LB / Start | Menu bar (Esc) |
 | Back / View | Inventory |
 
-`rightstick_speed` sets the speed of the pointer.
+`pointer_stick = left` swaps the sticks: the left stick moves the pointer
+and the right stick walks. `rightstick_speed` sets the speed of the pointer.
 Every button can be changed in the `[gamepad]` section of the ini file.
 
 ## Building from source
