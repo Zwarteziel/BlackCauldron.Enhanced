@@ -1,0 +1,26 @@
+quiet
+cycles 230
+loud
+hold 3
+cycles 120
+dump
+shot r1
+hold 5
+cycles 60
+dump
+shot r2
+hold 7
+cycles 150
+dump
+shot r3
+hold 1
+cycles 150
+dump
+shot r4
+hold 7
+cycles 150
+dump
+shot r5
+hold 0
+key F8
+cycles 3

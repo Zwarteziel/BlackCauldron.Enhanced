@@ -1,0 +1,28 @@
+quiet
+cycles 230
+loud
+hold 3
+cycles 40
+hold 0
+cycles 2
+dump
+key F5
+type Bij de hut
+cycles 3
+hold 7
+cycles 30
+hold 0
+cycles 2
+dump
+key F7
+cycles 5
+dump
+key F1
+cycles 5
+key F2
+cycles 2
+flag 9
+key F9
+mkey ENTER
+cycles 30
+dump

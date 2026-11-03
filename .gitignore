@@ -1,0 +1,6 @@
+build/
+out/
+*.sav
+*.bmp
+bc-enhanced.ini*
+__pycache__/
