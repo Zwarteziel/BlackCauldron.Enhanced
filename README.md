@@ -7,84 +7,27 @@ Windows without DOSBox. You need the original game files: your own copy, or
 the free download from Al Lowe, the game's designer (see *Where to get the
 game* below).
 
-The original game runs on Sierra's AGI engine (Adventure Game Interpreter,
-version 2.439 for this game). Black Cauldron Enhanced is a new AGI
-interpreter written from scratch in C, with SDL3 for the window, sound and
-gamepads. It reads the original `LOGDIR`, `PICDIR`, `VIEWDIR`, `SNDDIR`,
-`OBJECT`, `WORDS.TOK` and `VOL.*` files and runs the game's own scripts. The
-game logic is unchanged; the interpreter adds modern controls on top.
+The original game runs on Sierra's AGI engine (v2.439 for this game). 
+Black Cauldron Enhanced is a new AGI interpreter written from scratch in C,
+with SDL3 for the window, sound and gamepads. It reads the game's original
+files and runs the game's own scripts. The game logic is unchanged. 
 
-## What works
+## Black Cauldron Enhanced features:
 
-- The whole interpreter: logic scripts, pictures, animated objects, motion,
-  priority and control lines, inventory, menus, message windows.
-- **Display.** Window or full screen, 4:3 like a 1980s monitor, and the CRT
-  shaders of DOSBox Staging. By default the picture looks like a 1986 EGA
-  monitor (`monitor = ega`): one picture line per scanline, as an EGA monitor
-  drew it, with DOSBox Staging's EGA presets and EGA colours (P22 phosphors,
-  9300 K white point, slightly raised black level). `monitor = vga` gives the
-  double-scanned look of a 1990s VGA monitor instead. `shader = crt-auto`
-  picks the preset from the height of the picture, as DOSBox Staging does:
-
-  | Picture height | EGA preset |
-  |---|---|
-  | 1600 pixels and more | `ega-4k` |
-  | 1000 to 1599 | `ega-1440p` |
-  | 800 to 999 | `ega-1080p` |
-  | 600 to 799 | `ega-720p` |
-  | less | no CRT effect |
-
-  Ctrl+F6 switches the shader on and off, Ctrl+F5 switches between EGA and
-  VGA monitor.
-- **Sound: PCjr / Tandy or PC speaker.** The PC version of the game contains
-  music for the three tone voices and the noise voice of the PCjr and Tandy
-  1000 (SN76496 chip). With `sound = tandy` (the default) you hear all four
-  voices. `sound = pcspeaker` plays only the first voice as a square wave, as
-  the PC speaker of most PCs did in 1986. Ctrl+F4 switches between the two.
-  + and - set the volume in steps of 10 % (saved as `volume` in the ini
-  file). The original game allowed this only on a Tandy 1000; the help page
-  now always mentions it.
-- **Mouse.** Left click: Taran walks to the pointer. A click near the left,
-  right or bottom edge, in the black area below the picture, or above the
-  horizon makes Taran walk on until he touches that edge, so you leave the
-  room there, just as with the arrow keys. Right click: an action
-  menu in the style of the game with *Select*, *Use*, *Do* and *Look*.
-  When the pointer is over the status bar at the top, it shows the menu bar;
-  a click there opens that menu, as in the Amiga and Atari ST versions. In
-  an open menu the highlight follows the pointer. The pointer is a blocky
-  arrow on the 160-pixel grid of the AGI games, drawn in the game picture so
-  it gets the same CRT look. `pointer = agi-triangle` is the same arrow head
-  without the stem, `pointer = sci` the finer arrow of the later Sierra
-  games and `pointer = windows` the normal pointer. When
-  Taran cannot walk (intro, cut scenes), a click counts as a key press. For *Do*
-  and *Use*, Taran first walks to the place you clicked and then does the
-  action (configurable with `walk_first`). *Use* shows the object you chose
-  with *Select*. The mouse also works in menus, the inventory and message
-  windows (left = OK, right = cancel).
-- **Gamepad.** See the table below.
-- **IBM PC font.** Text uses the 8x8 font of the IBM PC ROM, as the
-  original did on an EGA card.
-- **Help (F1).** The original two help pages: keyboard (white) and, instead
-  of the joystick page, a page about the mouse and the controller (black).
-- **Save and restore.** F5 / F7, 12 slots, files `bce-save-NN.sav` in the
-  game folder. Restore also lists the saved games of the original DOS
-  version (`BCSG.1` to `BCSG.12` in the game folder) and loads them: the
-  picture is rebuilt from the original's script buffer, so you continue
-  exactly where you were.
+- **Modern controls**: you can use a mouse or controller to move Taran and
+  execute commands with an action menu, instead of function keys.
+- A **CRT-shader** that emulates the way the game looked on an EGA monitor.
+  you can also choose a VGA-monitor shader or turn it off completely.
+- An **IBM PC font**, that shows texts the way it looked on an EGA monitor.
+- A custom **mouse pointer**, that can be configured.
+- Emualation of **Tandy and PC-speaker** sound.
 
 ## Where to get the game
 
 Al Lowe offers The Black Cauldron as a free download on his website:
 <https://allowe.com/downloads/games.html> (the file
 `The Black Cauldron.zip`). He allows people to copy and share it, but he
-gives no support for it. The files in that download are the same as those
-of the original disks this project was tested with (version 2.00 of
-6/14/87, AGI 2.439).
-
-The game folder must contain at least `LOGDIR`, `PICDIR`, `VIEWDIR`,
-`SNDDIR`, `OBJECT`, `WORDS.TOK` and `VOL.0` to `VOL.2`. The other files
-of the original (`AGI`, `BC.COM`, the `*.OVL` files) are not needed, but
-may stay.
+gives no support for it. 
 
 ## Installation
 
