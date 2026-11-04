@@ -508,6 +508,7 @@ int text_menu(Agi *e, int start) {
             MenuItem *mi = &e->mitem[mn->first + it];
             if (mi->enabled) {
                 if (mi->ctrl == CTRL_GO_BACK) e->go_back_request = 1;
+                else if (mi->ctrl == CTRL_HUNGER) agi_toggle_hunger(e);
                 else e->ctrl[mi->ctrl] = 1;
                 e->modal = 0;
                 return 1;

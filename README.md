@@ -1,6 +1,6 @@
 # Black Cauldron Enhanced
 
-Version 1.20
+Version 1.30
 
 Play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) on modern
 Windows without DOSBox. You need the original game files: your own copy, or
@@ -21,11 +21,14 @@ Black Cauldron Enhanced features:
 - An **IBM PC font**, that shows texts the way it looked on an EGA monitor.
 - A custom **mouse pointer**, that can be configured.
 - Emualation of **Tandy and PC-speaker** sound.
-- A new **AdLib interpretation** of the music and sound effects. The game
-  never had AdLib music; this plays the Tandy notes on an emulated AdLib card
-  (FM synthesis). Choose flute (the default), organ, harp, or flute-harp
-  (the melody on a flute, the accompaniment on a harp) with
-  `adlib_instruments` in the ini file.
+- A new **AdLib interpretation** of the music and sound effects, used by
+  default. The game never had AdLib music; this plays the Tandy notes on an
+  emulated AdLib card (FM synthesis). Choose flute (the default), organ,
+  harp, or flute-harp (the melody on a flute, the accompaniment on a harp)
+  with `adlib_instruments` in the ini file.
+- **Hunger and thirst** can be switched off in the Special menu (or with
+  `hunger_thirst=off` in the ini file), so Taran never starves or dies of
+  thirst. They are on by default, as in the original game.
 - **Go back** to the moment you entered one of the last five rooms: after a
   fatal mistake the game offers it next to the original Restore, Restart
   and Quit, and File > Go Back (Ctrl+Z) does it at any time. A picture of each room helps you choose. The last room entry is

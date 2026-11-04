@@ -18,7 +18,8 @@
 #define MAX_MENU 16
 #define MAX_MENUITEM 48
 #define GO_BACK_MAX 5
-#define CTRL_GO_BACK 250      /* menu item handled by the interpreter */
+#define CTRL_GO_BACK 250      /* menu items handled by the interpreter */
+#define CTRL_HUNGER  251
 
 /* Screen object flags (same meaning as the original interpreter) */
 enum {
@@ -128,6 +129,8 @@ typedef struct AgiHost {
     /* Sound: play resource data, stop. Host sets flag via agi_sound_done. */
     void (*sound_play)(struct AgiHost *h, const uint8_t *data, int len);
     void (*sound_stop)(struct AgiHost *h);
+    /* Optional: a setting changed in the game's menu ("hunger_thirst"). */
+    void (*option_changed)(struct AgiHost *h, const char *name, int value);
 } AgiHost;
 
 /* Engine state -------------------------------------------------------- */
@@ -219,6 +222,7 @@ typedef struct Agi {
     void *go_back[GO_BACK_MAX]; int go_back_n;   /* room entry snapshots, newest first */
     int go_back_request;      /* 1 = from menu/Ctrl+Z, 2 = after a fatal mistake */
     int game_over_offered;
+    int hunger_off;           /* 1 = Taran never gets hungry or thirsty */
     int walk_tx, walk_ty;
     int ego_hold_dir;         /* held direction from gamepad/held keys */
 
@@ -290,6 +294,7 @@ void agi_sound_done(Agi *e);
 void agi_save_game(Agi *e);
 int  agi_restore_game(Agi *e);
 void agi_menu_add_go_back(Agi *e);
+void agi_toggle_hunger(Agi *e);
 int  agi_action_menu(Agi *e, int sx, int sy, const int walk_first[4]);
 void text_shake(Agi *e, int n);
 

@@ -28,6 +28,7 @@ typedef struct {
     int monitor_vga;          /* 0 = EGA monitor (default), 1 = VGA monitor */
     int sound, volume;        /* sound: 0 off, 1 PC speaker, 3 PCjr/Tandy, 4 AdLib */
     int adlib_style;          /* ADLIB_* */
+    int hunger;               /* 1 = Taran gets hungry and thirsty (the original game) */
     int arrows_hold;          /* 1 = walk while an arrow key is held */
     int walk_first[4];        /* look, do, use, select */
     int mouse;
@@ -42,7 +43,8 @@ static void config_defaults(Config *c) {
     memset(c, 0, sizeof *c);
     c->width = 1280; c->height = 960;
     c->scale_mode = 2; c->aspect = 1; c->shader = SHADER_CRT_AUTO;
-    c->sound = 3; c->volume = 60;
+    c->sound = 4; c->volume = 60;
+    c->hunger = 1;
     c->arrows_hold = 0;
     c->walk_first[1] = c->walk_first[2] = 1;   /* do, use */
     c->mouse = 1;
@@ -106,7 +108,10 @@ static void config_write(const char *path, const Config *c) {
         "[game]\n"
         "; Folder with the original Black Cauldron files (LOGDIR, VOL.0, ...).\n"
         "; Empty = the folder this program is in.\n"
-        "gamedir=%s\n\n"
+        "gamedir=%s\n"
+        "; on = Taran gets hungry and thirsty and must eat and drink, as in the\n"
+        "; original game; off = he never does. Also in the Special menu.\n"
+        "hunger_thirst=%s\n\n"
         "[display]\n"
         "; 1 = start in full screen (Alt+Enter or F11 switches while playing)\n"
         "fullscreen=%d\n"
@@ -170,7 +175,7 @@ static void config_write(const char *path, const Config *c) {
         ";   cancel, enter, inventory, prev_item, next_item, save, restore,\n"
         ";   pause, none\n"
         "; In menus and windows, A chooses and B goes back.\n",
-        c->gamedir, c->fullscreen, c->width, c->height, shader_to_str(c->shader),
+        c->gamedir, c->hunger ? "on" : "off", c->fullscreen, c->width, c->height, shader_to_str(c->shader),
         c->monitor_vga ? "vga" : "ega",
         c->scale_mode == 0 ? "nearest" : c->scale_mode == 1 ? "linear" : "sharp",
         c->aspect, c->integer_only, c->renderer_sdl ? "sdl" : "opengl",
@@ -199,6 +204,7 @@ static void config_load(Config *c, const char *path) {
         for (char *p = k; *p; p++) *p = (char)tolower((unsigned char)*p);
         if (!strcmp(section, "game")) {
             if (!strcmp(k, "gamedir")) snprintf(c->gamedir, sizeof c->gamedir, "%s", v);
+            else if (!strcmp(k, "hunger_thirst")) c->hunger = !(!SDL_strcasecmp(v, "off") || !strcmp(v, "0") || !SDL_strcasecmp(v, "no"));
         } else if (!strcmp(section, "display")) {
             if (!strcmp(k, "fullscreen")) c->fullscreen = atoi(v);
             else if (!strcmp(k, "width")) c->width = atoi(v);
@@ -534,6 +540,15 @@ static void host_sound_stop(AgiHost *h) {
     synth_stop(&a->synth);
     adlib_stop(&a->adlib);
     SDL_UnlockAudioStream(a->audio);
+}
+
+static void host_option_changed(AgiHost *h, const char *name, int value) {
+    App *a = (App *)h->user;
+    if (!strcmp(name, "hunger_thirst")) {
+        a->cfg.hunger = value;
+        ini_set(a->ini_path, "game", "hunger_thirst", value ? "on" : "off");
+        set_status(a, value ? "Hunger and thirst: on" : "Hunger and thirst: off");
+    }
 }
 
 static void SDLCALL audio_cb(void *ud, SDL_AudioStream *s, int additional, int total) {
@@ -1082,9 +1097,11 @@ int main(int argc, char **argv) {
     a->host.quit_requested = host_quit;
     a->host.sound_play = host_sound_play;
     a->host.sound_stop = host_sound_stop;
+    a->host.option_changed = host_option_changed;
     eng.host = &a->host;
     for (int i = 0; i < 4; i++) eng.walk_first[i] = a->cfg.walk_first[i];
     eng.pad_swap = a->cfg.pointer_left;
+    eng.hunger_off = !a->cfg.hunger;
     eng.rng = (uint32_t)SDL_GetTicks() ^ 0x5EED1986u;
     if (!a->gl && !a->cfg.renderer_sdl && a->cfg.shader != SHADER_NONE)
         set_status(a, "OpenGL 3.3 not available: CRT shader off");

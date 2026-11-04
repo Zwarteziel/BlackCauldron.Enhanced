@@ -519,7 +519,7 @@ static void state_capture(Agi *e, SaveState *s) {
     memcpy(s->text_bg, e->text_bg, sizeof s->text_bg); memcpy(s->text_used, e->text_used, sizeof s->text_used);
     memcpy(s->keymap, e->keymap, sizeof s->keymap); s->nkeymap = e->nkeymap;
     for (int i = 0, k = 0; i < e->nmitem; i++)
-        if (e->mitem[i].ctrl != CTRL_GO_BACK) s->item_enabled[k++] = (uint8_t)e->mitem[i].enabled;
+        if (e->mitem[i].ctrl < CTRL_GO_BACK) s->item_enabled[k++] = (uint8_t)e->mitem[i].enabled;
     for (int i = 0; i < 256; i++) { s->logic_loaded[i] = (uint8_t)e->logic[i].loaded; s->scan_start[i] = e->logic[i].scan_start; }
 }
 
@@ -540,7 +540,7 @@ static void state_apply(Agi *e, const SaveState *s) {
     memcpy(e->text_bg, s->text_bg, sizeof s->text_bg); memcpy(e->text_used, s->text_used, sizeof s->text_used);
     memcpy(e->keymap, s->keymap, sizeof s->keymap); e->nkeymap = s->nkeymap;
     for (int i = 0, k = 0; i < e->nmitem; i++)
-        if (e->mitem[i].ctrl != CTRL_GO_BACK) e->mitem[i].enabled = s->item_enabled[k++];
+        if (e->mitem[i].ctrl < CTRL_GO_BACK) e->mitem[i].enabled = s->item_enabled[k++];
     for (int i = 1; i < 256; i++) {
         if (e->logic[i].loaded) { free(e->logic[i].data); memset(&e->logic[i], 0, sizeof e->logic[i]); }
     }
@@ -826,26 +826,65 @@ static void game_over_menu(Agi *e) {
     }
 }
 
-/* Adds File > Go Back to the game's menu, after Restore. */
-void agi_menu_add_go_back(Agi *e) {
-    if (e->nmitem >= MAX_MENUITEM) return;
+/* Inserts an interpreter item into the game menu whose title starts with
+ * `menu`, after the item starting with `after` (NULL: at the end). */
+static MenuItem *menu_insert(Agi *e, const char *menu, const char *after, int ctrl) {
+    if (e->nmitem >= MAX_MENUITEM) return NULL;
     for (int m = 0; m < e->nmenu; m++) {
-        if (strncmp(e->menu[m].text, "File", 4)) continue;
+        if (strncmp(e->menu[m].text, menu, strlen(menu))) continue;
         Menu *mn = &e->menu[m];
         int at = mn->first + mn->count;      /* default: at the end */
-        for (int i = 0; i < mn->count; i++)
-            if (!strncmp(e->mitem[mn->first + i].text, "Restore", 7)) { at = mn->first + i + 1; break; }
+        for (int i = 0; after && i < mn->count; i++)
+            if (!strncmp(e->mitem[mn->first + i].text, after, strlen(after))) { at = mn->first + i + 1; break; }
         memmove(&e->mitem[at + 1], &e->mitem[at], (size_t)(e->nmitem - at) * sizeof e->mitem[0]);
         e->nmitem++;
         MenuItem *mi = &e->mitem[at];
-        int w = (int)strlen(e->mitem[mn->first].text);
-        if (w < 13 || w > 30) w = 13;
-        snprintf(mi->text, sizeof mi->text, "%-*s<^Z>", w - 4, "Go Back");   /* like "Restore  <F7>" */
-        mi->ctrl = CTRL_GO_BACK; mi->enabled = 1; mi->menu = m;
+        memset(mi, 0, sizeof *mi);
+        mi->ctrl = ctrl; mi->enabled = 1; mi->menu = m;
         mn->count++;
         for (int k = m + 1; k < e->nmenu; k++) e->menu[k].first++;
-        return;
+        return mi;
     }
+    return NULL;
+}
+
+static int menu_width(Agi *e, const MenuItem *mi, int def) {
+    int w = (int)strlen(e->mitem[e->menu[mi->menu].first].text);
+    return w < def || w > 30 ? def : w;
+}
+
+/* Special > Hunger & Thirst  On/Off: the text follows the setting */
+static void hunger_item_text(Agi *e) {
+    for (int i = 0; i < e->nmitem; i++) {
+        MenuItem *mi = &e->mitem[i];
+        if (mi->ctrl != CTRL_HUNGER) continue;
+        int w = menu_width(e, mi, 22);   /* like "Sound On/Off      <F2>" */
+        snprintf(mi->text, sizeof mi->text, "%-*s%3s", w - 3, "Hunger & Thirst", e->hunger_off ? "Off" : "On");
+    }
+}
+
+/* Adds File > Go Back after Restore, and Special > Hunger & Thirst. */
+void agi_menu_add_go_back(Agi *e) {
+    MenuItem *mi = menu_insert(e, "File", "Restore", CTRL_GO_BACK);
+    if (mi) snprintf(mi->text, sizeof mi->text, "%-*s<^Z>", menu_width(e, mi, 13) - 4, "Go Back");   /* like "Restore  <F7>" */
+    if (menu_insert(e, "Special", NULL, CTRL_HUNGER)) hunger_item_text(e);
+}
+
+void agi_toggle_hunger(Agi *e) {
+    e->hunger_off = !e->hunger_off;
+    hunger_item_text(e);
+    if (e->host->option_changed) e->host->option_changed(e->host, "hunger_thirst", !e->hunger_off);
+}
+
+/* Hunger and thirst off: keep Taran fed and watered. Logic 0 counts hunger
+ * in v90 (240 just after eating) with v89 as its 60-cycle step, and thirst
+ * in v92 (140 after drinking) with v91; when a counter has run out, its
+ * step counts down to death. The game sets both to 0 where they don't
+ * apply, so a counter that is 0 with its step at 0 is left alone. */
+static void keep_fed(Agi *e) {
+    if (!e->hunger_off) return;
+    if (e->var[90] || e->var[89]) { e->var[90] = 240; e->var[89] = 60; }
+    if (e->var[92] || e->var[91]) { e->var[92] = 140; e->var[91] = 60; }
 }
 
 /* Seeds the list with the autosave of an earlier session. */
@@ -888,6 +927,7 @@ int agi_cycle(Agi *e) {
     e->exit_all = 0;
     e->call_depth = 0;
     e->haskey_waits = 0;
+    keep_fed(e);
     while (!agi_run_logic(e, 0)) {
         if (e->quit) return 0;
         if (e->restart) { do_restart(e); }
