@@ -16,6 +16,8 @@ static const char *outdir = ".";
 static Agi *G;
 static int verbose = 1;
 
+static int snd_count;
+static void sndplay(AgiHost *h, const uint8_t *d, int len) { (void)h; (void)d; (void)len; snd_count++; }
 static void present(AgiHost *h) { (void)h; }
 static uint32_t ticks(AgiHost *h) { (void)h; return vt; }
 static void hsleep(AgiHost *h, int ms) { (void)h; vt += ms; }
@@ -93,7 +95,7 @@ int main(int argc, char **argv) {
     G = &eng;
     AgiHost host = {0};
     host.present = present; host.poll_key = poll_key; host.ticks = ticks;
-    host.sleep = hsleep; host.quit_requested = quitreq;
+    host.sleep = hsleep; host.quit_requested = quitreq; host.sound_play = sndplay;
     if (agi_load(&eng, argv[1]) < 0) { fprintf(stderr, "%s\n", eng.err); return 1; }
     eng.host = &host;
     eng.walk_first[1] = eng.walk_first[2] = 1;
@@ -136,12 +138,13 @@ int main(int argc, char **argv) {
         else if (!strcmp(cmd, "var")) printf("  v%d=%d\n", atoi(a1), eng.var[atoi(a1)]);
         else if (!strcmp(cmd, "setvar")) eng.var[atoi(a1) & 255] = (uint8_t)atoi(a2);
         else if (!strcmp(cmd, "ctrlz")) agi_key_event(&eng, 26);
+        else if (!strcmp(cmd, "sounds")) { printf("  sounds started: %d\n", snd_count); snd_count = 0; }
         else if (!strcmp(cmd, "goback")) printf("  go back points: %d\n", eng.go_back_n);
         else if (!strcmp(cmd, "flag")) printf("  f%d=%d\n", atoi(a1), eng.flag[atoi(a1)]);
         else if (!strcmp(cmd, "quiet")) verbose = 0;
         else if (!strcmp(cmd, "loud")) verbose = 1;
         else if (!strcmp(cmd, "quit")) break;
     }
-    printf("done: %ld cycles, room %d\n", total, eng.var[V_ROOM]);
+    printf("done: %ld cycles, room %d, sounds started: %d\n", total, eng.var[V_ROOM], snd_count);
     return 0;
 }

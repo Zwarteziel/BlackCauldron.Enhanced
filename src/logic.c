@@ -398,8 +398,12 @@ int agi_run_logic(Agi *e, int n) {
         case 99: {
             int len2;
             const uint8_t *d = agi_res(e, e->snddir[p[0]], &len2);
-            e->flag[p[1]] = 0;
+            /* as the original: first end the sound that is playing (its flag
+             * is set), then clear the flag of the new one. The other order
+             * broke sounds that loop on one flag, such as the river: the
+             * flag stayed set and the sound restarted every cycle. */
             if (e->sound_flag >= 0) e->flag[e->sound_flag] = 1;
+            e->flag[p[1]] = 0;
             e->sound_flag = p[1];
             if (d && e->flag[FL_SOUND]) {
                 if (e->host->sound_play) e->host->sound_play(e->host, d, len2);

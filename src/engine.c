@@ -707,11 +707,16 @@ static void draw_lines_box(Agi *e, const char **lines, int n, int row, int *bx, 
 
 /* Browse the snapshots (newest first) with the picture of each room.
  * Returns 1 when the player went back. */
-static int go_back_pick(Agi *e, const char *title) {
+static int go_back_pick(Agi *e, const char *title, const char *esc_text) {
     if (!e->go_back_n) {
         text_print(e, "There is no earlier room to go back to yet.", -1, -1, 0, 1);
         return 0;
     }
+    /* the clickable buttons and their columns within the line */
+    static const char buttons[] = "[<older]   [ENTER]   [newer>]";
+    static const int bstart[3] = {0, 11, 21}, bend[3] = {8, 18, 29};
+    static const int bkey[3] = {KEY_LEFT, KEY_ENTER, KEY_RIGHT};
+    const int top = 19;
     int sel = 0, result = -1;
     e->modal = 1;
     for (;;) {
@@ -724,19 +729,31 @@ static int go_back_pick(Agi *e, const char *title) {
         char l2[48];
         snprintf(l2, sizeof l2, "%s  (%d of %d)", sel == 0 ? "The room you entered last" :
                  sel == 1 ? "One room earlier" : "Earlier room", sel + 1, e->go_back_n);
-        const char *lines[4] = {title, l2, "<- older   ENTER   newer ->", "ESC: stay where you are"};
+        const char *lines[4] = {title, l2, buttons, esc_text};
         int bx, by, bw, bh;
-        draw_lines_box(e, lines, 4, 19, &bx, &by, &bw, &bh);
+        draw_lines_box(e, lines, 4, top, &bx, &by, &bw, &bh);
+        /* button under the mouse: shown inverted */
+        int w = 0;
+        for (int i = 0; i < 4; i++) { int l = (int)strlen(lines[i]); if (l > w) w = l; }
+        int bcol = (40 - w) / 2 + (w - (int)strlen(buttons)) / 2;
+        int hover = -1;
+        if (e->mouse_y >= (top + 2) * 8 && e->mouse_y < (top + 3) * 8 && e->mouse_x >= 0) {
+            int mc = e->mouse_x / 8 - bcol;
+            for (int b = 0; b < 3; b++) if (mc >= bstart[b] && mc < bend[b]) hover = b;
+        }
+        for (int b = 0; b < 3; b++) {
+            int dim = (b == 0 && sel == e->go_back_n - 1) || (b == 2 && sel == 0);
+            for (int k = bstart[b]; k < bend[b]; k++)
+                text_draw_char(e->screen, (bcol + k) * 8, (top + 2) * 8, (uint8_t)buttons[k],
+                               b == hover ? 15 : dim ? 8 : 0, b == hover ? 0 : 15);
+        }
         if (e->host->present) e->host->present(e->host);
         int k = e->host->poll_key(e->host);
         if (e->host->quit_requested(e->host)) { e->quit = 1; break; }
         if (!k) { e->host->sleep(e->host, 10); continue; }
         if (k == KEY_MOUSE_L) {
-            /* in the box: left third older, right third newer, middle go */
-            if (e->mouse_y >= by && e->mouse_y < by + bh && e->mouse_x >= bx && e->mouse_x < bx + bw) {
-                int third = (e->mouse_x - bx) * 3 / bw;
-                k = third == 0 ? KEY_LEFT : third == 2 ? KEY_RIGHT : KEY_ENTER;
-            } else continue;
+            if (hover < 0) continue;
+            k = bkey[hover];
         }
         if (k == KEY_ESC || k == KEY_MOUSE_R) break;
         if (k == KEY_LEFT && sel < e->go_back_n - 1) sel++;
@@ -747,6 +764,66 @@ static int go_back_pick(Agi *e, const char *title) {
     if (result < 0) return 0;
     state_apply(e, (SaveState *)e->go_back[result]);
     return 1;
+}
+
+/* After a fatal mistake: the new choice next to the original ones. The
+ * original choices are sent as the game's own keys, so the game handles
+ * them exactly as before (with its own questions). */
+static void game_over_menu(Agi *e) {
+    static const char *items[4] = {
+        "Go back to an earlier room   <^Z>",
+        "Restore a saved game         <F7>",
+        "Restart the game             <F9>",
+        "Quit                      <Alt-Z>"};
+    const char *title = "What would you like to do?";
+    const int n = 4, top = 9;
+    int sel = e->go_back_n ? 0 : 1;
+    for (;;) {
+        int w = (int)strlen(items[0]);
+        int col = (40 - w) / 2;
+        int bx = col * 8 - 8, by = (top - 2) * 8 - 5, bw = w * 8 + 16, bh = (n + 2) * 8 + 10;
+        e->modal = 1;
+        int choice = -1;
+        for (;;) {
+            compose_screen(e);
+            text_draw_box(e->screen, bx, by, bw, bh, 15, 4);
+            int tc = col + (w - (int)strlen(title)) / 2;
+            for (int k = 0; title[k]; k++) text_draw_char(e->screen, (tc + k) * 8, (top - 2) * 8, (uint8_t)title[k], 0, 15);
+            if (e->mouse_x >= bx && e->mouse_x < bx + bw && e->mouse_y >= top * 8 && e->mouse_y < (top + n) * 8) {
+                static int lx = -1, ly = -1;
+                if (e->mouse_x != lx || e->mouse_y != ly) { sel = e->mouse_y / 8 - top; lx = e->mouse_x; ly = e->mouse_y; }
+            }
+            for (int i = 0; i < n; i++) {
+                int dim = i == 0 && !e->go_back_n;
+                for (int k = 0; items[i][k]; k++)
+                    text_draw_char(e->screen, (col + k) * 8, (top + i) * 8, (uint8_t)items[i][k],
+                                   i == sel ? 15 : dim ? 8 : 0, i == sel ? 0 : 15);
+            }
+            if (e->host->present) e->host->present(e->host);
+            int k = e->host->poll_key(e->host);
+            if (e->host->quit_requested(e->host)) { e->quit = 1; break; }
+            if (!k) { e->host->sleep(e->host, 10); continue; }
+            if (k == KEY_MOUSE_L) {
+                if (e->mouse_x >= bx && e->mouse_x < bx + bw && e->mouse_y >= top * 8 && e->mouse_y < (top + n) * 8) {
+                    sel = e->mouse_y / 8 - top; k = KEY_ENTER;
+                } else continue;
+            }
+            if (k == KEY_ESC || k == KEY_MOUSE_R) break;
+            if (k == KEY_UP) sel = (sel + n - 1) % n;
+            if (k == KEY_DOWN) sel = (sel + 1) % n;
+            if (k == KEY_ENTER) { if (sel == 0 && !e->go_back_n) continue; choice = sel; break; }
+        }
+        e->modal = 0;
+        switch (choice) {
+        case 0:
+            if (go_back_pick(e, "Go back in time, Taran?", "ESC: the other choices")) return;
+            continue;                                   /* back to these choices */
+        case 1: agi_key_event(e, KEY_F(7)); return;
+        case 2: agi_key_event(e, KEY_F(9)); return;
+        case 3: agi_key_event(e, 0x2C << 8); return;    /* Alt+Z */
+        default: return;                                /* ESC: stay */
+        }
+    }
 }
 
 /* Adds File > Go Back to the game's menu, after Restore. */
@@ -842,13 +919,14 @@ int agi_cycle(Agi *e) {
     if (BC_GAME_OVER(e)) {
         if (!e->game_over_offered && e->var[87] <= 1 && !e->win_open) {
             e->game_over_offered = 1;
-            if (e->go_back_n) e->go_back_request = 2;
+            e->go_back_request = 2;
         }
     } else e->game_over_offered = 0;
     if (e->go_back_request) {
         int over = e->go_back_request == 2;
         e->go_back_request = 0;
-        go_back_pick(e, over ? "Go back in time, Taran?" : "Go back to an earlier room?");
+        if (over) game_over_menu(e);
+        else go_back_pick(e, "Go back to an earlier room?", "ESC: stay where you are");
     }
     return !e->quit;
 }
