@@ -1,6 +1,6 @@
 # Black Cauldron Enhanced
 
-Version 1.30
+Version 1.31
 
 Play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) on modern
 Windows without DOSBox. You need the original game files: your own copy, or
@@ -29,9 +29,9 @@ Black Cauldron Enhanced features:
 - **Hunger and thirst** can be switched off in the Special menu (or with
   `hunger_thirst=off` in the ini file), so Taran never starves or dies of
   thirst. They are on by default, as in the original game.
-- **Go back** to the moment you entered one of the last five rooms: after a
+- **Go back** to the moment you entered one of the last five scenes: after a
   fatal mistake the game offers it next to the original Restore, Restart
-  and Quit, and File > Go Back (Ctrl+Z) does it at any time. A picture of each room helps you choose. The last room entry is
+  and Quit, and File > Go Back (Ctrl+Z) does it at any time. A picture of each scene helps you choose. The last scene entry is
   also kept in `bce-autosave.sav`, which Restore lists as well.
 
 ## Where to get the game
@@ -66,7 +66,7 @@ The original keys all work:
 | Esc | Menu bar |
 | F1 / F2 | Help / sound on-off |
 | F5 / F7 / F9 | Save / restore / restart |
-| Ctrl+Z | Go back to an earlier room (added by Black Cauldron Enhanced) |
+| Ctrl+Z | Go back to an earlier scene (added by Black Cauldron Enhanced) |
 | F10 | Change speed |
 | + / - | Volume louder / softer |
 | Alt+Z | Quit |

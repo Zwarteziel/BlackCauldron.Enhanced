@@ -171,7 +171,7 @@ static void config_write(const char *path, const Config *c) {
         ";   click       left mouse click at the pointer (Taran walks there)\n"
         ";   look, do, use, select   the actions of the game (F8, F6, F4, F3)\n"
         ";   menu        the menu bar (Esc); in menus and windows: back\n"
-        ";   go_back     go back to the moment you entered an earlier room\n"
+        ";   go_back     go back to the moment you entered an earlier scene\n"
         ";   cancel, enter, inventory, prev_item, next_item, save, restore,\n"
         ";   pause, none\n"
         "; In menus and windows, A chooses and B goes back.\n",

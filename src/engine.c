@@ -611,7 +611,7 @@ int agi_restore_game(Agi *e) {
     char apath[1100];
     autosave_path(e, apath, sizeof apath);
     FILE *af = fopen(apath, "rb");
-    if (af) { fclose(af); snprintf(extra[nextra], 32, "Autosave: last room entered"); kind[nextra++] = -1; }
+    if (af) { fclose(af); snprintf(extra[nextra], 32, "Autosave: last scene"); kind[nextra++] = -1; }
     for (int i = 0; i < ndos; i++) { snprintf(extra[nextra], 32, "DOS: %.26s", dosdesc[i]); kind[nextra++] = i; }
     int slot = pick_slot(e, "Restore which saved game?", 1, nextra, extra);
     if (slot < 0) return 0;
@@ -670,7 +670,7 @@ static void go_back_capture(Agi *e) {
     go_back_push(e, s);
     char path[1100];
     autosave_path(e, path, sizeof path);
-    state_write(path, "Last room entered", s);
+    state_write(path, "Last scene entered", s);
 }
 
 /* Show what a snapshot looked like: swap the display state in and out. */
@@ -709,7 +709,7 @@ static void draw_lines_box(Agi *e, const char **lines, int n, int row, int *bx, 
  * Returns 1 when the player went back. */
 static int go_back_pick(Agi *e, const char *title, const char *esc_text) {
     if (!e->go_back_n) {
-        text_print(e, "There is no earlier room to go back to yet.", -1, -1, 0, 1);
+        text_print(e, "There is no earlier scene to go back to yet.", -1, -1, 0, 1);
         return 0;
     }
     /* the clickable buttons and their columns within the line */
@@ -727,8 +727,8 @@ static int go_back_pick(Agi *e, const char *title, const char *esc_text) {
         compose_screen(e);
         swap_display(e, s);
         char l2[48];
-        snprintf(l2, sizeof l2, "%s  (%d of %d)", sel == 0 ? "The room you entered last" :
-                 sel == 1 ? "One room earlier" : "Earlier room", sel + 1, e->go_back_n);
+        snprintf(l2, sizeof l2, "%s  (%d of %d)", sel == 0 ? "The scene you entered last" :
+                 sel == 1 ? "One scene earlier" : "Earlier scene", sel + 1, e->go_back_n);
         const char *lines[4] = {title, l2, buttons, esc_text};
         int bx, by, bw, bh;
         draw_lines_box(e, lines, 4, top, &bx, &by, &bw, &bh);
@@ -771,7 +771,7 @@ static int go_back_pick(Agi *e, const char *title, const char *esc_text) {
  * them exactly as before (with its own questions). */
 static void game_over_menu(Agi *e) {
     static const char *items[4] = {
-        "Go back to an earlier room   <^Z>",
+        "Go back to an earlier scene  <^Z>",
         "Restore a saved game         <F7>",
         "Restart the game             <F9>",
         "Quit                      <Alt-Z>"};
@@ -973,7 +973,7 @@ int agi_cycle(Agi *e) {
         int over = e->go_back_request == 2;
         e->go_back_request = 0;
         if (over) game_over_menu(e);
-        else go_back_pick(e, "Go back to an earlier room?", "ESC: stay where you are");
+        else go_back_pick(e, "Go back to an earlier scene?", "ESC: stay where you are");
     }
     return !e->quit;
 }
