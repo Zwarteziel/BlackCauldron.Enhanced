@@ -1,0 +1,31 @@
+# Room 13: Taran swims into the river and climbs out again (south bank),
+# then swims back in. Expect view=1 v75=2, then room 18 view=0 v75=0.
+quiet
+cycles 230
+room 13
+cycles 5
+pos 60 160
+cycles 2
+hold 1
+cycles 40
+hold 0
+cycles 2
+dump
+var 75
+flag 0
+shot swim1
+hold 5
+cycles 60
+hold 0
+cycles 2
+dump
+var 75
+flag 0
+shot swim2
+hold 1
+cycles 80
+hold 0
+cycles 2
+dump
+var 75
+shot swim3

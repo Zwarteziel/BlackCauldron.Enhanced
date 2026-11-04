@@ -108,7 +108,7 @@ static int check_priority(Agi *e, ScreenObj *o) {
     }
     if (o->nr == 0) {
         e->flag[FL_EGO_TRIGGER] = (uint8_t)trigger;
-        e->flag[FL_EGO_WATER] = (uint8_t)(water && ok);
+        e->flag[FL_EGO_WATER] = (uint8_t)water;   /* also when the move is refused */
     }
     return ok;
 }
@@ -314,6 +314,11 @@ void obj_update_all(Agi *e) {
             if (o->x == o->xprev && o->y == o->yprev) o->flags |= F_DIDNT_MOVE;
             else { o->xprev = o->x; o->yprev = o->y; o->flags &= ~F_DIDNT_MOVE; }
         }
+        /* As in the original interpreter, object.on.water / object.on.land
+         * hold the ego for one move only; the game sets them again when
+         * needed. Black Cauldron sets on.water once when Taran starts to
+         * swim, so without this he could never climb out of the river. */
+        e->obj[0].flags &= ~(F_ON_WATER | F_ON_LAND);
     }
 }
 

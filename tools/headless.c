@@ -146,6 +146,9 @@ int main(int argc, char **argv) {
         else if (!strcmp(cmd, "var")) printf("  v%d=%d\n", atoi(a1), eng.var[atoi(a1)]);
         else if (!strcmp(cmd, "setvar")) eng.var[atoi(a1) & 255] = (uint8_t)atoi(a2);
         else if (!strcmp(cmd, "ctrlz")) agi_key_event(&eng, 26);
+        else if (!strcmp(cmd, "room")) agi_new_room(&eng, atoi(a1));
+        else if (!strcmp(cmd, "pri")) { int x0 = atoi(a1), y0 = atoi(a2); for (int y = y0 - 6; y <= y0 + 6; y++) { printf("  %3d ", y); for (int x = x0 - 4; x < x0 + 16; x++) printf("%x", (x >= 0 && x < PIC_W) ? eng.pic_pri[y * PIC_W + x] : 0); printf("\n"); } }
+        else if (!strcmp(cmd, "pos")) { eng.obj[0].x = eng.obj[0].xprev = atoi(a1); eng.obj[0].y = eng.obj[0].yprev = atoi(a2); }
         else if (!strcmp(cmd, "hunger")) { if (strcmp(a1, "toggle")) eng.hunger_off = !atoi(a1); else agi_toggle_hunger(&eng); }
         else if (!strcmp(cmd, "menuitem")) { for (int i = 0; i < eng.nmitem; i++) if (strstr(eng.mitem[i].text, a1)) printf("  menu item: '%s'\n", eng.mitem[i].text); }
         else if (!strcmp(cmd, "sounds")) { printf("  sounds started: %d, stopped: %d\n", snd_count, snd_stops); snd_count = snd_stops = 0; }
