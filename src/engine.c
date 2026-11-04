@@ -499,7 +499,7 @@ typedef struct {
     uint8_t logic_loaded[256];
 } SaveState;
 
-/* Our own menu item (File > Go Back) is not part of the game's menu, so it
+/* Our own menu item (File > Rewind) is not part of the game's menu, so it
  * is left out of the saved enable states: saved games stay compatible. */
 static void state_capture(Agi *e, SaveState *s) {
     memset(s, 0, sizeof *s);
@@ -644,7 +644,7 @@ int agi_restore_game(Agi *e) {
 /* ------------------------------------------- go back: room entry snapshots */
 /* Every time Taran enters a room, the state after the room's first cycle is
  * kept (the last GO_BACK_MAX rooms) and written to bce-autosave.sav. After a
- * fatal mistake, or with File > Go Back (Ctrl+Z), the player can go back to
+ * fatal mistake, or with File > Rewind (Ctrl+Z), the player can go back to
  * one of these moments. Nothing of the game logic changes. */
 
 static void go_back_clear(Agi *e) {
@@ -709,7 +709,7 @@ static void draw_lines_box(Agi *e, const char **lines, int n, int row, int *bx, 
  * Returns 1 when the player went back. */
 static int go_back_pick(Agi *e, const char *title, const char *esc_text) {
     if (!e->go_back_n) {
-        text_print(e, "There is no earlier scene to go back to yet.", -1, -1, 0, 1);
+        text_print(e, "There is no earlier scene to rewind to yet.", -1, -1, 0, 1);
         return 0;
     }
     /* the clickable buttons and their columns within the line */
@@ -771,10 +771,10 @@ static int go_back_pick(Agi *e, const char *title, const char *esc_text) {
  * them exactly as before (with its own questions). */
 static void game_over_menu(Agi *e) {
     static const char *items[4] = {
-        "Go back to an earlier scene  <^Z>",
-        "Restore a saved game         <F7>",
-        "Restart the game             <F9>",
-        "Quit                      <Alt-Z>"};
+        "Rewind to an earlier scene  <Ctrl-Z>",
+        "Restore a saved game            <F7>",
+        "Restart the game                <F9>",
+        "Quit                         <Alt-Z>"};
     const char *title = "What would you like to do?";
     const int n = 4, top = 9;
     int sel = e->go_back_n ? 0 : 1;
@@ -816,7 +816,7 @@ static void game_over_menu(Agi *e) {
         e->modal = 0;
         switch (choice) {
         case 0:
-            if (go_back_pick(e, "Go back in time, Taran?", "ESC: the other choices")) return;
+            if (go_back_pick(e, "Rewind time, Taran?", "ESC: the other choices")) return;
             continue;                                   /* back to these choices */
         case 1: agi_key_event(e, KEY_F(7)); return;
         case 2: agi_key_event(e, KEY_F(9)); return;
@@ -863,10 +863,46 @@ static void hunger_item_text(Agi *e) {
     }
 }
 
-/* Adds File > Go Back after Restore, and Special > Hunger & Thirst. */
+/* Lines up the items of a menu: the label on the left, the key ("<F7>")
+ * on the right, separators across the full width. */
+static void menu_align(Agi *e, int m) {
+    Menu *mn = &e->menu[m];
+    char label[MAX_MENUITEM][41], key[MAX_MENUITEM][41];
+    int w = 0;
+    for (int i = 0; i < mn->count; i++) {
+        const char *s = e->mitem[mn->first + i].text;
+        const char *k = strrchr(s, '<');
+        if (!k || !strchr(k, '>')) k = s + strlen(s);
+        int ll = (int)(k - s);
+        while (ll > 0 && s[ll - 1] == ' ') ll--;
+        snprintf(label[i], sizeof label[i], "%.*s", ll, s);
+        snprintf(key[i], sizeof key[i], "%s", k);
+        int iw = ll + (*k ? 2 + (int)strlen(k) : 0);
+        if (strspn(s, "-") == strlen(s)) iw = 0;     /* separator */
+        if (iw > w) w = iw;
+    }
+    if (w > 40) return;
+    for (int i = 0; i < mn->count; i++) {
+        MenuItem *mi = &e->mitem[mn->first + i];
+        if (strspn(mi->text, "-") == strlen(mi->text)) {
+            memset(mi->text, '-', (size_t)w); mi->text[w] = 0;
+        } else {
+            int pad = w - (int)strlen(key[i]);
+            if (pad < 0) pad = 0;
+            char line[128];
+            snprintf(line, sizeof line, "%-*.40s%.40s", pad & 63, label[i], key[i]);
+            snprintf(mi->text, sizeof mi->text, "%.40s", line);
+        }
+    }
+}
+
+/* Adds File > Rewind after Restore, and Special > Hunger & Thirst. */
 void agi_menu_add_go_back(Agi *e) {
     MenuItem *mi = menu_insert(e, "File", "Restore", CTRL_GO_BACK);
-    if (mi) snprintf(mi->text, sizeof mi->text, "%-*s<^Z>", menu_width(e, mi, 13) - 4, "Go Back");   /* like "Restore  <F7>" */
+    if (mi) {
+        snprintf(mi->text, sizeof mi->text, "Rewind  <Ctrl-Z>");
+        menu_align(e, mi->menu);
+    }
     if (menu_insert(e, "Special", NULL, CTRL_HUNGER)) hunger_item_text(e);
 }
 
@@ -962,7 +998,7 @@ int agi_cycle(Agi *e) {
         text_menu(e, e->menu_start);
     }
     /* after a fatal mistake (the game's own message has been shown), offer
-     * to go back; with File > Go Back or Ctrl+Z at any time */
+     * to go back; with File > Rewind or Ctrl+Z at any time */
     if (BC_GAME_OVER(e)) {
         if (!e->game_over_offered && e->var[87] <= 1 && !e->win_open) {
             e->game_over_offered = 1;
@@ -973,7 +1009,7 @@ int agi_cycle(Agi *e) {
         int over = e->go_back_request == 2;
         e->go_back_request = 0;
         if (over) game_over_menu(e);
-        else go_back_pick(e, "Go back to an earlier scene?", "ESC: stay where you are");
+        else go_back_pick(e, "Rewind to an earlier scene?", "ESC: stay where you are");
     }
     return !e->quit;
 }

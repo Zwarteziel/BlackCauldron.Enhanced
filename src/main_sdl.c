@@ -171,7 +171,7 @@ static void config_write(const char *path, const Config *c) {
         ";   click       left mouse click at the pointer (Taran walks there)\n"
         ";   look, do, use, select   the actions of the game (F8, F6, F4, F3)\n"
         ";   menu        the menu bar (Esc); in menus and windows: back\n"
-        ";   go_back     go back to the moment you entered an earlier scene\n"
+        ";   rewind      rewind to the moment you entered an earlier scene (Ctrl+Z)\n"
         ";   cancel, enter, inventory, prev_item, next_item, save, restore,\n"
         ";   pause, none\n"
         "; In menus and windows, A chooses and B goes back.\n",
@@ -667,7 +667,7 @@ static void do_action(App *a, int button, const char *act, int down) {
     else if (!SDL_strcasecmp(act, "cancel")) push_key(a, KEY_ESC);
     else if (!SDL_strcasecmp(act, "enter")) push_key(a, KEY_ENTER);
     else if (!SDL_strcasecmp(act, "inventory")) push_key(a, 9);
-    else if (!SDL_strcasecmp(act, "go_back")) push_key(a, 26);
+    else if (!SDL_strcasecmp(act, "rewind") || !SDL_strcasecmp(act, "go_back")) push_key(a, 26);
     else if (!SDL_strcasecmp(act, "save")) push_key(a, KEY_F(5));
     else if (!SDL_strcasecmp(act, "restore")) push_key(a, KEY_F(7));
     else if (!SDL_strcasecmp(act, "pause")) push_key(a, 27);
