@@ -1,3 +1,5 @@
+<img width="1240" height="754" alt="image" src="https://github.com/user-attachments/assets/0219571e-b454-4953-9dd2-4ce269b93e57" />
+
 # Black Cauldron Enhanced
 
 (Version 1.35)
@@ -20,6 +22,9 @@ Sound
 
 Controls
 - The ability to use the mouse or a modern controller to move Taran and execute commands, instead of function keys.
+
+
+
 
 ## Where to get the game
 
