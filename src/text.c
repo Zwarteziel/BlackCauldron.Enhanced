@@ -506,7 +506,12 @@ int text_menu(Agi *e, int start) {
         if (k == KEY_ESC) break;
         if (k == KEY_ENTER) {
             MenuItem *mi = &e->mitem[mn->first + it];
-            if (mi->enabled) { e->ctrl[mi->ctrl] = 1; e->modal = 0; return 1; }
+            if (mi->enabled) {
+                if (mi->ctrl == CTRL_GO_BACK) e->go_back_request = 1;
+                else e->ctrl[mi->ctrl] = 1;
+                e->modal = 0;
+                return 1;
+            }
             continue;
         }
         if (k == KEY_LEFT) { m = (m + e->nmenu - 1) % e->nmenu; it = 0; }

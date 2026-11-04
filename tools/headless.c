@@ -134,6 +134,9 @@ int main(int argc, char **argv) {
         else if (!strcmp(cmd, "mshot") && mshot_n < 8) snprintf(mshot_q[mshot_n++], 64, "%s", a1);
         else if (!strcmp(cmd, "dump")) dump();
         else if (!strcmp(cmd, "var")) printf("  v%d=%d\n", atoi(a1), eng.var[atoi(a1)]);
+        else if (!strcmp(cmd, "setvar")) eng.var[atoi(a1) & 255] = (uint8_t)atoi(a2);
+        else if (!strcmp(cmd, "ctrlz")) agi_key_event(&eng, 26);
+        else if (!strcmp(cmd, "goback")) printf("  go back points: %d\n", eng.go_back_n);
         else if (!strcmp(cmd, "flag")) printf("  f%d=%d\n", atoi(a1), eng.flag[atoi(a1)]);
         else if (!strcmp(cmd, "quiet")) verbose = 0;
         else if (!strcmp(cmd, "loud")) verbose = 1;

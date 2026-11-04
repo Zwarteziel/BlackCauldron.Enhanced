@@ -1,6 +1,8 @@
+# Restore: 12 own slots, then the autosave, then the DOS save BCSG.1
 quiet
 cycles 230
 loud
+mkey DOWN
 mkey DOWN
 mkey DOWN
 mkey DOWN

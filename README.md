@@ -1,6 +1,6 @@
 # Black Cauldron Enhanced
 
-Version 1.0.0
+Version 1.10
 
 Play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) on modern
 Windows without DOSBox. You need the original game files: your own copy, or
@@ -21,6 +21,10 @@ Black Cauldron Enhanced features:
 - An **IBM PC font**, that shows texts the way it looked on an EGA monitor.
 - A custom **mouse pointer**, that can be configured.
 - Emualation of **Tandy and PC-speaker** sound.
+- **Go back** to the moment you entered one of the last five rooms: after a
+  fatal mistake the game offers it, and File > Go Back (Ctrl+Z) does it at
+  any time. A picture of each room helps you choose. The last room entry is
+  also kept in `bce-autosave.sav`, which Restore lists as well.
 
 ## Where to get the game
 
@@ -54,6 +58,7 @@ The original keys all work:
 | Esc | Menu bar |
 | F1 / F2 | Help / sound on-off |
 | F5 / F7 / F9 | Save / restore / restart |
+| Ctrl+Z | Go back to an earlier room (added by Black Cauldron Enhanced) |
 | F10 | Change speed |
 | + / - | Volume louder / softer |
 | Alt+Z | Quit |

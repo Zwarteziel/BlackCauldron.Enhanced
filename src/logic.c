@@ -539,7 +539,10 @@ int agi_run_logic(Agi *e, int n) {
                 e->menu[e->nmenu - 1].count++;
             }
             break;
-        case 158: e->menu_submitted = 1; break;
+        case 158:
+            if (!e->menu_submitted) agi_menu_add_go_back(e);
+            e->menu_submitted = 1;
+            break;
         case 159: case 160:
             for (int i = 0; i < e->nmitem; i++) if (e->mitem[i].ctrl == p[0]) e->mitem[i].enabled = c == 159;
             break;

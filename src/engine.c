@@ -102,6 +102,7 @@ static void handle_key(Agi *e, int key) {
     for (int i = 0; i < e->nkeymap; i++) {
         if (e->keymap[i].key == key) { e->ctrl[e->keymap[i].ctrl] = 1; return; }
     }
+    if (key == 26) { e->go_back_request = 1; return; }   /* Ctrl+Z (not used by the game) */
     if (key == KEY_MOUSE_L) {
         /* a click on the status bar opens the menus (as on the Amiga and ST) */
         int m = text_menu_bar_hit(e, e->mouse_x, e->mouse_y);
@@ -310,8 +311,8 @@ static int pick_slot(Agi *e, const char *title, int need_existing, int ndos, cha
             char line[40];
             int item = r;                         /* item index, -1 = heading */
             if (r < SAVE_SLOTS) snprintf(line, sizeof line, "%2d. %-27s", r + 1, exist[r] ? descs[r] : "-");
-            else if (r == SAVE_SLOTS) { snprintf(line, sizeof line, "Saved with the original game:"); item = -1; }
-            else { item = r - 1; snprintf(line, sizeof line, "%2d. %-27s", r - SAVE_SLOTS, dosdesc[r - SAVE_SLOTS - 1]); }
+            else if (r == SAVE_SLOTS) { snprintf(line, sizeof line, "Other saved games:"); item = -1; }
+            else { item = r - 1; snprintf(line, sizeof line, "    %-27s", dosdesc[r - SAVE_SLOTS - 1]); }
             int inv = item >= 0 && item == sel;
             for (int k = 0; line[k] && k < 31; k++)
                 text_draw_char(e->screen, (4 + k) * 8, (4 + r) * 8, (uint8_t)line[k], inv ? 15 : 0, inv ? 0 : 15);
@@ -498,15 +499,10 @@ typedef struct {
     uint8_t logic_loaded[256];
 } SaveState;
 
-void agi_save_game(Agi *e) {
-    int slot = pick_slot(e, "Save the game in which slot?", 0, 0, NULL);
-    if (slot < 0) return;
-    char desc[41] = {0};
-    char old[32];
-    slot_desc(e, slot, old);
-    if (!text_get_string(e, "How would you like to describe this saved game?", -1, -1, 30, desc)) return;
-    if (!desc[0]) snprintf(desc, sizeof desc, "%s", old[0] ? old : "Saved game");
-    SaveState *s = calloc(1, sizeof *s);
+/* Our own menu item (File > Go Back) is not part of the game's menu, so it
+ * is left out of the saved enable states: saved games stay compatible. */
+static void state_capture(Agi *e, SaveState *s) {
+    memset(s, 0, sizeof *s);
     memcpy(s->var, e->var, 256); memcpy(s->flag, e->flag, 256);
     memcpy(s->str, e->str, sizeof s->str);
     memcpy(s->item_room, e->item_room, sizeof s->item_room);
@@ -522,57 +518,12 @@ void agi_save_game(Agi *e) {
     memcpy(s->text_ch, e->text_ch, sizeof s->text_ch); memcpy(s->text_fg, e->text_fg, sizeof s->text_fg);
     memcpy(s->text_bg, e->text_bg, sizeof s->text_bg); memcpy(s->text_used, e->text_used, sizeof s->text_used);
     memcpy(s->keymap, e->keymap, sizeof s->keymap); s->nkeymap = e->nkeymap;
-    for (int i = 0; i < e->nmitem; i++) s->item_enabled[i] = (uint8_t)e->mitem[i].enabled;
+    for (int i = 0, k = 0; i < e->nmitem; i++)
+        if (e->mitem[i].ctrl != CTRL_GO_BACK) s->item_enabled[k++] = (uint8_t)e->mitem[i].enabled;
     for (int i = 0; i < 256; i++) { s->logic_loaded[i] = (uint8_t)e->logic[i].loaded; s->scan_start[i] = e->logic[i].scan_start; }
-    char path[1024];
-    slot_path(e, slot, path, sizeof path);
-    FILE *f = fopen(path, "wb");
-    int ok = 0;
-    if (f) {
-        int ver = SAVE_VERSION;
-        char d32[32] = {0};
-        snprintf(d32, sizeof d32, "%s", desc);
-        ok = fwrite(SAVE_MAGIC, 1, 8, f) == 8 && fwrite(&ver, 4, 1, f) == 1 &&
-             fwrite(d32, 1, 32, f) == 32 && fwrite(s, sizeof *s, 1, f) == 1;
-        ok = (fclose(f) == 0) && ok;
-    }
-    free(s);
-    if (!ok) text_print(e, "The game could not be saved.", -1, -1, 0, 1);
 }
 
-int agi_restore_game(Agi *e) {
-    int dosnum[MAX_DOS_SAVES];
-    char dosdesc[MAX_DOS_SAVES][32];
-    int ndos = find_dos_saves(e, dosnum, dosdesc);
-    int slot = pick_slot(e, "Restore which saved game?", 1, ndos, dosdesc);
-    if (slot < 0) return 0;
-    if (slot >= SAVE_SLOTS) {
-        char dpath[1100];
-        dos_save_path(e, dosnum[slot - SAVE_SLOTS], dpath, sizeof dpath);
-        if (!load_dos_save(e, dpath)) {
-            text_print(e, "This saved game cannot be read.", -1, -1, 0, 1);
-            return 0;
-        }
-        e->walk_active = 0;
-        e->win_open = 0;
-        e->sound_flag = -1;
-        if (e->host->sound_stop) e->host->sound_stop(e->host);
-        e->flag[FL_RESTORED] = 1;
-        e->exit_all = 1;
-        return 1;
-    }
-    char path[1024];
-    slot_path(e, slot, path, sizeof path);
-    FILE *f = fopen(path, "rb");
-    if (!f) return 0;
-    SaveState *s = calloc(1, sizeof *s);
-    char hdr[8], d32[32];
-    int ver = 0;
-    int ok = fread(hdr, 1, 8, f) == 8 && !memcmp(hdr, SAVE_MAGIC, 8) &&
-             fread(&ver, 4, 1, f) == 1 && ver == SAVE_VERSION &&
-             fread(d32, 1, 32, f) == 32 && fread(s, sizeof *s, 1, f) == 1;
-    fclose(f);
-    if (!ok) { free(s); text_print(e, "This saved game cannot be read.", -1, -1, 0, 1); return 0; }
+static void state_apply(Agi *e, const SaveState *s) {
     memcpy(e->var, s->var, 256); memcpy(e->flag, s->flag, 256);
     memcpy(e->str, s->str, sizeof s->str);
     memcpy(e->item_room, s->item_room, sizeof s->item_room);
@@ -588,7 +539,8 @@ int agi_restore_game(Agi *e) {
     memcpy(e->text_ch, s->text_ch, sizeof s->text_ch); memcpy(e->text_fg, s->text_fg, sizeof s->text_fg);
     memcpy(e->text_bg, s->text_bg, sizeof s->text_bg); memcpy(e->text_used, s->text_used, sizeof s->text_used);
     memcpy(e->keymap, s->keymap, sizeof s->keymap); e->nkeymap = s->nkeymap;
-    for (int i = 0; i < e->nmitem; i++) e->mitem[i].enabled = s->item_enabled[i];
+    for (int i = 0, k = 0; i < e->nmitem; i++)
+        if (e->mitem[i].ctrl != CTRL_GO_BACK) e->mitem[i].enabled = s->item_enabled[k++];
     for (int i = 1; i < 256; i++) {
         if (e->logic[i].loaded) { free(e->logic[i].data); memset(&e->logic[i], 0, sizeof e->logic[i]); }
     }
@@ -597,19 +549,242 @@ int agi_restore_game(Agi *e) {
     }
     for (int i = 0; i < MAX_OBJ; i++)
         if (e->obj[i].flags & (F_ANIMATED | F_DRAWN)) agi_load_view(e, e->obj[i].view);
-    free(s);
+    /* continue as after a restore */
     e->walk_active = 0;
     e->win_open = 0;
     e->sound_flag = -1;
     if (e->host->sound_stop) e->host->sound_stop(e->host);
     e->flag[FL_RESTORED] = 1;
+}
+
+static int state_write(const char *path, const char *desc, const SaveState *s) {
+    FILE *f = fopen(path, "wb");
+    if (!f) return 0;
+    int ver = SAVE_VERSION;
+    char d32[32] = {0};
+    snprintf(d32, sizeof d32, "%s", desc);
+    int ok = fwrite(SAVE_MAGIC, 1, 8, f) == 8 && fwrite(&ver, 4, 1, f) == 1 &&
+             fwrite(d32, 1, 32, f) == 32 && fwrite(s, sizeof *s, 1, f) == 1;
+    return (fclose(f) == 0) && ok;
+}
+
+static int state_read(const char *path, SaveState *s) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    char hdr[8], d32[32];
+    int ver = 0;
+    int ok = fread(hdr, 1, 8, f) == 8 && !memcmp(hdr, SAVE_MAGIC, 8) &&
+             fread(&ver, 4, 1, f) == 1 && ver == SAVE_VERSION &&
+             fread(d32, 1, 32, f) == 32 && fread(s, sizeof *s, 1, f) == 1;
+    fclose(f);
+    return ok;
+}
+
+static void autosave_path(Agi *e, char *out, int n) {
+    snprintf(out, n, "%s/bce-autosave.sav", e->dir);
+}
+
+void agi_save_game(Agi *e) {
+    int slot = pick_slot(e, "Save the game in which slot?", 0, 0, NULL);
+    if (slot < 0) return;
+    char desc[41] = {0};
+    char old[32];
+    slot_desc(e, slot, old);
+    if (!text_get_string(e, "How would you like to describe this saved game?", -1, -1, 30, desc)) return;
+    if (!desc[0]) snprintf(desc, sizeof desc, "%s", old[0] ? old : "Saved game");
+    SaveState *s = malloc(sizeof *s);
+    state_capture(e, s);
+    char path[1024];
+    slot_path(e, slot, path, sizeof path);
+    int ok = state_write(path, desc, s);
+    free(s);
+    if (!ok) text_print(e, "The game could not be saved.", -1, -1, 0, 1);
+}
+
+int agi_restore_game(Agi *e) {
+    /* other saved games: the autosave, then saves of the original version */
+    int dosnum[MAX_DOS_SAVES];
+    char dosdesc[MAX_DOS_SAVES][32];
+    int ndos = find_dos_saves(e, dosnum, dosdesc);
+    char extra[MAX_DOS_SAVES + 1][32];
+    int kind[MAX_DOS_SAVES + 1], nextra = 0;   /* kind: -1 autosave, else DOS index */
+    char apath[1100];
+    autosave_path(e, apath, sizeof apath);
+    FILE *af = fopen(apath, "rb");
+    if (af) { fclose(af); snprintf(extra[nextra], 32, "Autosave: last room entered"); kind[nextra++] = -1; }
+    for (int i = 0; i < ndos; i++) { snprintf(extra[nextra], 32, "DOS: %.26s", dosdesc[i]); kind[nextra++] = i; }
+    int slot = pick_slot(e, "Restore which saved game?", 1, nextra, extra);
+    if (slot < 0) return 0;
+    if (slot >= SAVE_SLOTS && kind[slot - SAVE_SLOTS] >= 0) {
+        char dpath[1100];
+        dos_save_path(e, dosnum[kind[slot - SAVE_SLOTS]], dpath, sizeof dpath);
+        if (!load_dos_save(e, dpath)) {
+            text_print(e, "This saved game cannot be read.", -1, -1, 0, 1);
+            return 0;
+        }
+        e->walk_active = 0;
+        e->win_open = 0;
+        e->sound_flag = -1;
+        if (e->host->sound_stop) e->host->sound_stop(e->host);
+        e->flag[FL_RESTORED] = 1;
+        e->exit_all = 1;
+        return 1;
+    }
+    char path[1100];
+    if (slot >= SAVE_SLOTS) snprintf(path, sizeof path, "%s", apath);
+    else slot_path(e, slot, path, sizeof path);
+    SaveState *s = malloc(sizeof *s);
+    if (!state_read(path, s)) { free(s); text_print(e, "This saved game cannot be read.", -1, -1, 0, 1); return 0; }
+    state_apply(e, s);
+    free(s);
     e->exit_all = 1;
     return 1;
+}
+
+/* ------------------------------------------- go back: room entry snapshots */
+/* Every time Taran enters a room, the state after the room's first cycle is
+ * kept (the last GO_BACK_MAX rooms) and written to bce-autosave.sav. After a
+ * fatal mistake, or with File > Go Back (Ctrl+Z), the player can go back to
+ * one of these moments. Nothing of the game logic changes. */
+
+static void go_back_clear(Agi *e) {
+    for (int i = 0; i < e->go_back_n; i++) free(e->go_back[i]);
+    e->go_back_n = 0;
+}
+
+static void go_back_push(Agi *e, SaveState *s) {
+    if (e->go_back_n == GO_BACK_MAX) { free(e->go_back[GO_BACK_MAX - 1]); e->go_back_n--; }
+    memmove(e->go_back + 1, e->go_back, (size_t)e->go_back_n * sizeof e->go_back[0]);
+    e->go_back[0] = s;               /* newest first */
+    e->go_back_n++;
+}
+
+/* The Black Cauldron: variable 102 is 13 once the game is lost. */
+#define BC_GAME_OVER(e) ((e)->var[102] == 13)
+
+static void go_back_capture(Agi *e) {
+    if (e->var[V_ROOM] == 0 || !(e->obj[0].flags & F_DRAWN) || BC_GAME_OVER(e) || e->text_mode) return;
+    SaveState *s = malloc(sizeof *s);
+    if (!s) return;
+    state_capture(e, s);
+    go_back_push(e, s);
+    char path[1100];
+    autosave_path(e, path, sizeof path);
+    state_write(path, "Last room entered", s);
+}
+
+/* Show what a snapshot looked like: swap the display state in and out. */
+static void swap_display(Agi *e, SaveState *s) {
+    static uint8_t tmp[PIC_W * PIC_H];
+    static ScreenObj tobj[MAX_OBJ];
+#define SWAPA(a, b) do { memcpy(tmp, a, sizeof a); memcpy(a, b, sizeof a); memcpy(b, tmp, sizeof a); } while (0)
+    SWAPA(e->pic_vis, s->pic_vis);
+    SWAPA(e->pic_pri, s->pic_pri);
+    SWAPA(e->shown_vis, s->shown_vis);
+    memcpy(tobj, e->obj, sizeof tobj); memcpy(e->obj, s->obj, sizeof tobj); memcpy(s->obj, tobj, sizeof tobj);
+    SWAPA(e->var, s->var);
+    SWAPA(e->flag, s->flag);
+    SWAPA(e->text_ch, s->text_ch); SWAPA(e->text_fg, s->text_fg);
+    SWAPA(e->text_bg, s->text_bg); SWAPA(e->text_used, s->text_used);
+#undef SWAPA
+    int32_t t;
+    t = e->pic_shown; e->pic_shown = s->pic_shown; s->pic_shown = t;
+    t = e->status_on; e->status_on = s->status_on; s->status_on = t;
+    t = e->text_mode; e->text_mode = s->text_mode; s->text_mode = t;
+}
+
+static void draw_lines_box(Agi *e, const char **lines, int n, int row, int *bx, int *by, int *bw, int *bh) {
+    int w = 0;
+    for (int i = 0; i < n; i++) { int l = (int)strlen(lines[i]); if (l > w) w = l; }
+    int col = (40 - w) / 2;
+    *bx = col * 8 - 8; *by = row * 8 - 5; *bw = w * 8 + 16; *bh = n * 8 + 10;
+    text_draw_box(e->screen, *bx, *by, *bw, *bh, 15, 4);
+    for (int i = 0; i < n; i++) {
+        int c = col + (w - (int)strlen(lines[i])) / 2;
+        for (int k = 0; lines[i][k]; k++) text_draw_char(e->screen, (c + k) * 8, (row + i) * 8, (uint8_t)lines[i][k], 0, 15);
+    }
+}
+
+/* Browse the snapshots (newest first) with the picture of each room.
+ * Returns 1 when the player went back. */
+static int go_back_pick(Agi *e, const char *title) {
+    if (!e->go_back_n) {
+        text_print(e, "There is no earlier room to go back to yet.", -1, -1, 0, 1);
+        return 0;
+    }
+    int sel = 0, result = -1;
+    e->modal = 1;
+    for (;;) {
+        SaveState *s = (SaveState *)e->go_back[sel];
+        for (int i = 0; i < MAX_OBJ; i++)
+            if (s->obj[i].flags & (F_ANIMATED | F_DRAWN)) agi_load_view(e, s->obj[i].view);
+        swap_display(e, s);
+        compose_screen(e);
+        swap_display(e, s);
+        char l2[48];
+        snprintf(l2, sizeof l2, "%s  (%d of %d)", sel == 0 ? "The room you entered last" :
+                 sel == 1 ? "One room earlier" : "Earlier room", sel + 1, e->go_back_n);
+        const char *lines[4] = {title, l2, "<- older   ENTER   newer ->", "ESC: stay where you are"};
+        int bx, by, bw, bh;
+        draw_lines_box(e, lines, 4, 19, &bx, &by, &bw, &bh);
+        if (e->host->present) e->host->present(e->host);
+        int k = e->host->poll_key(e->host);
+        if (e->host->quit_requested(e->host)) { e->quit = 1; break; }
+        if (!k) { e->host->sleep(e->host, 10); continue; }
+        if (k == KEY_MOUSE_L) {
+            /* in the box: left third older, right third newer, middle go */
+            if (e->mouse_y >= by && e->mouse_y < by + bh && e->mouse_x >= bx && e->mouse_x < bx + bw) {
+                int third = (e->mouse_x - bx) * 3 / bw;
+                k = third == 0 ? KEY_LEFT : third == 2 ? KEY_RIGHT : KEY_ENTER;
+            } else continue;
+        }
+        if (k == KEY_ESC || k == KEY_MOUSE_R) break;
+        if (k == KEY_LEFT && sel < e->go_back_n - 1) sel++;
+        else if (k == KEY_RIGHT && sel > 0) sel--;
+        else if (k == KEY_ENTER) { result = sel; break; }
+    }
+    e->modal = 0;
+    if (result < 0) return 0;
+    state_apply(e, (SaveState *)e->go_back[result]);
+    return 1;
+}
+
+/* Adds File > Go Back to the game's menu, after Restore. */
+void agi_menu_add_go_back(Agi *e) {
+    if (e->nmitem >= MAX_MENUITEM) return;
+    for (int m = 0; m < e->nmenu; m++) {
+        if (strncmp(e->menu[m].text, "File", 4)) continue;
+        Menu *mn = &e->menu[m];
+        int at = mn->first + mn->count;      /* default: at the end */
+        for (int i = 0; i < mn->count; i++)
+            if (!strncmp(e->mitem[mn->first + i].text, "Restore", 7)) { at = mn->first + i + 1; break; }
+        memmove(&e->mitem[at + 1], &e->mitem[at], (size_t)(e->nmitem - at) * sizeof e->mitem[0]);
+        e->nmitem++;
+        MenuItem *mi = &e->mitem[at];
+        int w = (int)strlen(e->mitem[mn->first].text);
+        if (w < 13 || w > 30) w = 13;
+        snprintf(mi->text, sizeof mi->text, "%-*s<^Z>", w - 4, "Go Back");   /* like "Restore  <F7>" */
+        mi->ctrl = CTRL_GO_BACK; mi->enabled = 1; mi->menu = m;
+        mn->count++;
+        for (int k = m + 1; k < e->nmenu; k++) e->menu[k].first++;
+        return;
+    }
+}
+
+/* Seeds the list with the autosave of an earlier session. */
+static void go_back_seed(Agi *e) {
+    if (e->go_back_n) return;
+    char path[1100];
+    autosave_path(e, path, sizeof path);
+    SaveState *s = malloc(sizeof *s);
+    if (s && state_read(path, s)) go_back_push(e, s);
+    else free(s);
 }
 
 /* ------------------------------------------------------------ main cycle */
 static void do_restart(Agi *e) {
     if (e->host->sound_stop) e->host->sound_stop(e->host);
+    go_back_clear(e);
     int sound = e->flag[FL_SOUND];
     agi_init_state(e);
     e->flag[FL_SOUND] = (uint8_t)sound;
@@ -648,6 +823,7 @@ int agi_cycle(Agi *e) {
         memset(e->ctrl, 0, sizeof e->ctrl);
     }
     memset(e->ctrl, 0, sizeof e->ctrl);
+    int entered = e->flag[FL_NEW_ROOM] && !e->restart;
     ego->dir = e->var[V_EGO_DIR];
     e->var[V_OBJ_BORDER_NR] = 0;
     e->var[V_OBJ_BORDER] = 0;
@@ -656,9 +832,23 @@ int agi_cycle(Agi *e) {
     e->flag[FL_RESTORED] = 0;
     e->flag[FL_LOGIC0_FIRST] = 0;
     obj_update_all(e);
+    if (entered) go_back_capture(e);
     if (e->menu_request) {
         e->menu_request = 0;
         text_menu(e, e->menu_start);
+    }
+    /* after a fatal mistake (the game's own message has been shown), offer
+     * to go back; with File > Go Back or Ctrl+Z at any time */
+    if (BC_GAME_OVER(e)) {
+        if (!e->game_over_offered && e->var[87] <= 1 && !e->win_open) {
+            e->game_over_offered = 1;
+            if (e->go_back_n) e->go_back_request = 2;
+        }
+    } else e->game_over_offered = 0;
+    if (e->go_back_request) {
+        int over = e->go_back_request == 2;
+        e->go_back_request = 0;
+        go_back_pick(e, over ? "Go back in time, Taran?" : "Go back to an earlier room?");
     }
     return !e->quit;
 }
@@ -686,6 +876,7 @@ static void update_clock(Agi *e, uint32_t now) {
 }
 
 void agi_run(Agi *e) {
+    go_back_seed(e);
     uint32_t now = e->host->ticks(e->host);
     e->clock_ms = now;
     uint32_t next = now;
