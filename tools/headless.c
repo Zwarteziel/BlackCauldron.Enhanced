@@ -80,6 +80,13 @@ static int keyname(const char *s) {
     if (!strcmp(s, "RIGHT")) return KEY_RIGHT;
     if (!strcmp(s, "SPACE")) return ' ';
     if (!strcmp(s, "TAB")) return 9;
+    if (s[0] == '^' && s[1]) return (s[1] | 0x20) - 'a' + 1;            /* ^Z = Ctrl+Z */
+    if (!strncmp(s, "ALT-", 4) && s[4]) {                                /* ALT-Z */
+        static const char *rows = "qwertyuiop\0asdfghjkl\0zxcvbnm";
+        static const int base[3] = {0x10, 0x1E, 0x2C};
+        int c = s[4] | 0x20, r = 0;
+        for (int i = 0; i < 29; i++) { if (!rows[i]) { r++; continue; } if (rows[i] == c) return (base[r] + (i - (r ? (r == 1 ? 11 : 21) : 0))) << 8; }
+    }
     return (unsigned char)s[0];
 }
 

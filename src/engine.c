@@ -809,6 +809,9 @@ static void game_over_menu(Agi *e) {
                 } else continue;
             }
             if (k == KEY_ESC || k == KEY_MOUSE_R) break;
+            /* the keys shown next to the choices */
+            int hot = k == 26 ? 0 : k == KEY_F(7) ? 1 : k == KEY_F(9) ? 2 : k == (0x2C << 8) ? 3 : -1;
+            if (hot >= 0) { sel = hot; k = KEY_ENTER; }
             if (k == KEY_UP) sel = (sel + n - 1) % n;
             if (k == KEY_DOWN) sel = (sel + 1) % n;
             if (k == KEY_ENTER) { if (sel == 0 && !e->go_back_n) continue; choice = sel; break; }

@@ -1,6 +1,6 @@
 # Black Cauldron Enhanced
 
-Version 1.32
+Version 1.33
 
 Play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) on modern
 Windows without DOSBox. You need the original game files: your own copy, or
