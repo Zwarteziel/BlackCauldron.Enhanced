@@ -1,55 +1,37 @@
 # Black Cauldron Enhanced
 
-Version 1.35
+(Version 1.35)
 
-Play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) on modern
-Windows without DOSBox. You need the original game files: your own copy, or
-the free download from Al Lowe, the game's designer (see *Where to get the
-game* below).
+Black Cauldron Enhanced enables you to play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) with several QoL-fixes in Windows, without the need for DosBox. This enhanced version is an AGI interpreter, that uses SDL3 for the graphics, sounds and controls. It started out as an idea to add mouse controls to the game, where you are able to point and left-click to walk  to a location, while a right-click brings up a menu with the available actions. It didn't take long to add all sorts of small QoL-fixes to make the game more enjoyable. The current version has the following improvements:
 
-The original game runs on Sierra's AGI engine (v2.439 for this game). 
-Black Cauldron Enhanced is a new AGI interpreter written from scratch in C,
-with SDL3 for the window, sound and gamepads. It reads the game's original
-files and runs the game's own scripts. The game logic is unchanged. 
+Gameplay
+- The ability to play the game on Windows, without the use of DosBox. You'll need the game's original files, either from your own disks or Al Lowe's website.
+- The ability to rewind to an earlier scene or room, in addition to the normal restore, restart and quit options of the original. The game 'records' up to 5 scenes.
+- The ability to disable hunger and thirst, preventing Taran from dying if you do not constantly look after his well-being.
 
-Black Cauldron Enhanced features:
+Graphics
+- The ability to use an EGA or VGA-shader, or no shader at all. The EGA shader lets you experience the game as it was played back in the day (Though I only had a CGA monitor!)
+- An AGI-style mouse pointer, instead of the basic Windows-cursor. You can also opt for a pointer that resembles the later SCI-style arrow.
+- Text is displayed in the traditional IBM 8x8-pixel font.
 
-- **Modern controls**: you can use a mouse or controller to move Taran and
-  execute commands with an action menu, instead of function keys.
-- A **CRT-shader** that emulates the way the game looked on an EGA monitor.
-  you can also choose a VGA-monitor shader or turn it off completely.
-- An **IBM PC font**, that shows texts the way it looked on an EGA monitor.
-- A custom **mouse pointer**, that can be configured.
-- Emualation of **Tandy and PC-speaker** sound.
-- A new **AdLib interpretation** of the music and sound effects, used by
-  default. The game never had AdLib music; this plays the Tandy notes on an
-  emulated AdLib card (FM synthesis). Choose flute (the default), organ,
-  harp, or flute-harp (the melody on a flute, the accompaniment on a harp)
-  with `adlib_instruments` in the ini file.
-- **Hunger and thirst** can be switched off in the Special menu (or with
-  `hunger_thirst=off` in the ini file), so Taran never starves or dies of
-  thirst. They are on by default, as in the original game.
-- **Rewind** to the moment you entered one of the last five scenes: after a
-  fatal mistake the game offers it next to the original Restore, Restart
-  and Quit, and File > Rewind (Ctrl+Z) does it at any time. A picture of each scene helps you choose. The last scene entry is
-  also kept in `bce-autosave.sav`, which Restore lists as well.
+Sound
+- Emulation of both the Tandy/PCjr-sound and the PC-speaker, that was available in the original game.
+- An AdLib-interpretation of how  the music could have sounded on this slightly more modern soundcard, that was introduced in 1987.
+
+Controls
+- The ability to use the mouse or a modern controller to move Taran and execute commands, instead of function keys.
 
 ## Where to get the game
 
-Al Lowe offers The Black Cauldron as a free download on his website:
-<https://allowe.com/downloads/games.html> (the file
-`The Black Cauldron.zip`). He allows people to copy and share it, but he
-gives no support for it. 
+Al Lowe offers The Black Cauldron as a free download on his website: <https://allowe.com/downloads/games.html> (the file `The Black Cauldron.zip`). He allows people to copy and share it, but he gives no support for it. 
 
 ## Installation
 
-1. Copy `BC-Enhanced.exe` into the folder with the game files (or into a
-   folder directly below it). For the download from Al Lowe: unzip
-   `The Black Cauldron.zip` and put the exe in the folder with `LOGDIR`.
-2. Start `BC-Enhanced.exe`.
+1. Copy `BC-Enhanced.exe` into the folder with the game files (or into a folder directly below it). For the download from Al Lowe: unzip `The Black Cauldron.zip` and put the exe in the folder with `LOGDIR`.
+   
+3. Start `BC-Enhanced.exe`.
 
-On first start the program writes `bc-enhanced.ini` next to the exe, with an
-explanation for every setting.
+On the first start, the program writes `bc-enhanced.ini` next to the exe, with an explanation for every setting.
 
 ## Controls
 
@@ -71,7 +53,7 @@ The original keys all work:
 | + / - | Volume louder / softer |
 | Alt+Z | Quit |
 
-Added by Black Cauldron Enhanced:
+Additional keys added by Black Cauldron Enhanced are:
 
 | Key | Action |
 |---|---|
@@ -95,34 +77,20 @@ Added by Black Cauldron Enhanced:
 | LB / Start | Menu bar (Esc) |
 | Back / View | Inventory |
 
-`pointer_stick = left` swaps the sticks: the left stick moves the pointer
-and the right stick walks. `rightstick_speed` sets the speed of the pointer.
-Every button can be changed in the `[gamepad]` section of the ini file.
+`pointer_stick = left` swaps the sticks: the left stick moves the pointer and the right stick walks. `rightstick_speed` sets the speed of the pointer. Every button can be changed in the `[gamepad]` section of the ini file.
 
 ## Building from source
 
-The Windows build is cross-compiled on Linux with clang, lld, mingw-w64 (built
-from source) and a static SDL3 3.2. See `build.sh`. The engine itself
-(`src/res.c`, `objects.c`, `text.c`, `logic.c`, `engine.c`) has no SDL
-dependency; `tools/headless.c` runs the game without a window from a script
-(see `tests/`) and saves screenshots. `tools/listing.py` disassembles the
-game's logic scripts (`BC_GAMEDIR=<folder> python3 tools/listing.py 0`).
+The Windows build is cross-compiled on Linux with clang, lld, mingw-w64 (built from source) and a static SDL3 3.2. See `build.sh`. The engine itself
+(`src/res.c`, `objects.c`, `text.c`, `logic.c`, `engine.c`) has no SDL dependency; `tools/headless.c` runs the game without a window from a script (see `tests/`) and saves screenshots. `tools/listing.py` disassembles the game's logic scripts (`BC_GAMEDIR=<folder> python3 tools/listing.py 0`).
 
 ## Licences
 
-- Black Cauldron Enhanced source code: GPL-3.0-or-later, (c) 2026 Zwarteziel.
-  See `LICENSE`.
-- CRT shaders and image adjustments (`third_party/dosbox-staging-shaders`): MIT,
-  (c) The DOSBox Staging Team, Hyllian, Tyrells and others. See the README in
-  that folder.
+- Black Cauldron Enhanced source code: GPL-3.0-or-later, (c) 2026 Zwarteziel. See `LICENSE`.
+- CRT shaders and image adjustments (`third_party/dosbox-staging-shaders`): MIT, (c) The DOSBox Staging Team, Hyllian, Tyrells and others. See the README in that folder.
 - SDL3 (linked statically in the Windows build): zlib licence.
-- Nuked-OPL3 1.8 (`third_party/nuked-opl3`), the emulation of the AdLib's
-  Yamaha OPL chip: LGPL-2.1-or-later, (c) Nuke.YKT. See the LICENSE in that
-  folder.
-- IBM PC 8x8 font (`src/font_ibm8x8.inc`): taken from DOSBox Staging
-  (`src/ints/int10_memory.cpp`), GPL-2.0-or-later, (c) The DOSBox Team and
-  The DOSBox Staging Team.
-- Icon (`src/bce.ico`, `art/icon32.png`): original pixel art made for this
-  project, GPL-3.0-or-later like the rest.
+- Nuked-OPL3 1.8 (`third_party/nuked-opl3`), the emulation of the AdLib's Yamaha OPL chip: LGPL-2.1-or-later, (c) Nuke.YKT. See the LICENSE in that folder.
+- IBM PC 8x8 font (`src/font_ibm8x8.inc`): taken from DOSBox Staging (`src/ints/int10_memory.cpp`), GPL-2.0-or-later, (c) The DOSBox Team and The DOSBox Staging Team.
+- Icon (`src/bce.ico`, `art/icon32.png`): original pixel art made for this project, GPL-3.0-or-later like the rest.
 - The Black Cauldron is (c) Sierra On-Line and The Walt Disney Company. No game
   files are included.
