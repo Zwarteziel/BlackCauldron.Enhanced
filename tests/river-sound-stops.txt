@@ -1,0 +1,17 @@
+# Room 6 has the looping river sound; walking west into room 5 must end it
+# (as new.room does in the original). Expect "stopped: 1" after the walk
+# and no sounds started afterwards.
+quiet
+cycles 230
+room 6
+cycles 40
+sounds
+pos 20 150
+hold 7
+cycles 60
+hold 0
+cycles 20
+dump
+sounds
+cycles 300
+sounds

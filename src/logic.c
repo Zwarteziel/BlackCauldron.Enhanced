@@ -100,6 +100,11 @@ static int eval_test(Agi *e, int t, const uint8_t *p) {
 
 void agi_new_room(Agi *e, int n) {
     if (agi_log_hook) { char b[32]; snprintf(b, sizeof b, "%d", n); agi_log_hook(e, "room", b); }
+    /* as the original: a new room ends the sound that is playing (and sets
+     * its flag), so a looping sound such as the river stops when Taran
+     * walks away from it; a room that wants it starts it again */
+    if (e->sound_flag >= 0 && e->host && e->host->sound_stop) e->host->sound_stop(e->host);
+    agi_sound_done(e);
     for (int i = 0; i < e->nobj; i++) {
         ScreenObj *o = &e->obj[i];
         o->flags &= ~(F_ANIMATED | F_DRAWN);
