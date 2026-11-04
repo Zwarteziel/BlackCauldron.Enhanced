@@ -1,6 +1,6 @@
 # Black Cauldron Enhanced
 
-Version 1.12
+Version 1.20
 
 Play **The Black Cauldron** (Sierra On-Line / Disney, 1986-87) on modern
 Windows without DOSBox. You need the original game files: your own copy, or
@@ -21,6 +21,11 @@ Black Cauldron Enhanced features:
 - An **IBM PC font**, that shows texts the way it looked on an EGA monitor.
 - A custom **mouse pointer**, that can be configured.
 - Emualation of **Tandy and PC-speaker** sound.
+- A new **AdLib interpretation** of the music and sound effects. The game
+  never had AdLib music; this plays the Tandy notes on an emulated AdLib card
+  (FM synthesis). Choose flute (the default), organ, harp, or flute-harp
+  (the melody on a flute, the accompaniment on a harp) with
+  `adlib_instruments` in the ini file.
 - **Go back** to the moment you entered one of the last five rooms: after a
   fatal mistake the game offers it next to the original Restore, Restart
   and Quit, and File > Go Back (Ctrl+Z) does it at any time. A picture of each room helps you choose. The last room entry is
@@ -71,7 +76,7 @@ Added by Black Cauldron Enhanced:
 | F12 | Screenshot (`bceNNNN.bmp`) |
 | Ctrl+F6 | CRT shader on/off (saved in the ini file) |
 | Ctrl+F5 | EGA / VGA monitor (saved in the ini file) |
-| Ctrl+F4 | PCjr/Tandy sound / PC speaker (saved in the ini file) |
+| Ctrl+F4 | PCjr/Tandy sound / AdLib / PC speaker (saved in the ini file) |
 
 ## Default gamepad layout
 
@@ -108,6 +113,9 @@ game's logic scripts (`BC_GAMEDIR=<folder> python3 tools/listing.py 0`).
   (c) The DOSBox Staging Team, Hyllian, Tyrells and others. See the README in
   that folder.
 - SDL3 (linked statically in the Windows build): zlib licence.
+- Nuked-OPL3 1.8 (`third_party/nuked-opl3`), the emulation of the AdLib's
+  Yamaha OPL chip: LGPL-2.1-or-later, (c) Nuke.YKT. See the LICENSE in that
+  folder.
 - IBM PC 8x8 font (`src/font_ibm8x8.inc`): taken from DOSBox Staging
   (`src/ints/int10_memory.cpp`), GPL-2.0-or-later, (c) The DOSBox Team and
   The DOSBox Staging Team.

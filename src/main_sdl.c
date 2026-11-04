@@ -11,6 +11,7 @@
 #include "agi.h"
 #include "crt_gl.h"
 #include "sound.h"
+#include "adlib.h"
 #include "version.h"
 
 #define APP_NAME "Black Cauldron Enhanced"
@@ -25,7 +26,8 @@ typedef struct {
     int fullscreen, width, height;
     int scale_mode, aspect, integer_only, shader, renderer_sdl;
     int monitor_vga;          /* 0 = EGA monitor (default), 1 = VGA monitor */
-    int sound, volume;
+    int sound, volume;        /* sound: 0 off, 1 PC speaker, 3 PCjr/Tandy, 4 AdLib */
+    int adlib_style;          /* ADLIB_* */
     int arrows_hold;          /* 1 = walk while an arrow key is held */
     int walk_first[4];        /* look, do, use, select */
     int mouse;
@@ -81,6 +83,7 @@ static const char *shader_to_str(int sh) {
     }
 }
 
+static const char *ADLIB_NAMES[ADLIB_STYLES] = {"flute", "organ", "harp", "flute-harp"};
 static const char *ACT_NAMES[4] = {"look", "do", "use", "select"};
 
 static void walk_first_str(const Config *c, char *out, int n) {
@@ -126,10 +129,17 @@ static void config_write(const char *path, const Config *c) {
         "; opengl (needed for the CRT shader) or sdl\n"
         "renderer=%s\n\n"
         "[sound]\n"
-        "; tandy = PCjr/Tandy 1000 sound: three voices and noise (the full music)\n"
-        "; pcspeaker = the PC speaker, as on most PCs in 1986 (one voice)\n"
-        "; off = no sound. Ctrl+F4 switches between tandy and pcspeaker.\n"
+        "; The sound the music and effects are played on:\n"
+        ";   tandy      PCjr/Tandy 1000 sound: three voices and noise (the full music)\n"
+        ";   adlib      the same music arranged for an AdLib card (FM synthesis);\n"
+        ";              the game never had AdLib music, this is a new interpretation\n"
+        ";   pcspeaker  the PC speaker, as on most PCs in 1986 (one voice)\n"
+        ";   off        no sound\n"
+        "; Ctrl+F4 switches between tandy, adlib and pcspeaker while playing.\n"
         "sound=%s\n"
+        "; Instruments for adlib: flute, organ, harp, or flute-harp (melody on the\n"
+        "; flute, the accompaniment on the harp)\n"
+        "adlib_instruments=%s\n"
         "; volume 0 - 100. While playing, + and - change it in steps of 10.\n"
         "volume=%d\n\n"
         "[controls]\n"
@@ -164,7 +174,8 @@ static void config_write(const char *path, const Config *c) {
         c->monitor_vga ? "vga" : "ega",
         c->scale_mode == 0 ? "nearest" : c->scale_mode == 1 ? "linear" : "sharp",
         c->aspect, c->integer_only, c->renderer_sdl ? "sdl" : "opengl",
-        c->sound == 3 ? "tandy" : c->sound == 1 ? "pcspeaker" : "off", c->volume, c->mouse, c->pointer == 1 ? "agi" : c->pointer == 2 ? "sci" : c->pointer == 3 ? "agi-triangle" : "windows", wf, c->arrows_hold ? "hold" : "classic");
+        c->sound == 3 ? "tandy" : c->sound == 4 ? "adlib" : c->sound == 1 ? "pcspeaker" : "off",
+        ADLIB_NAMES[c->adlib_style], c->volume, c->mouse, c->pointer == 1 ? "agi" : c->pointer == 2 ? "sci" : c->pointer == 3 ? "agi-triangle" : "windows", wf, c->arrows_hold ? "hold" : "classic");
     for (int i = 0; i < PAD_COUNT; i++) fprintf(f, "%s=%s\n", pad_keys[i], c->pad[i]);
     fprintf(f, "; stick dead zone, 0.1 - 0.8\ndeadzone=%g\n", c->deadzone);
     fprintf(f, "; Which stick moves the mouse pointer: right (the left stick walks) or\n"
@@ -199,9 +210,12 @@ static void config_load(Config *c, const char *path) {
             else if (!strcmp(k, "monitor")) c->monitor_vga = !SDL_strcasecmp(v, "vga");
             else if (!strcmp(k, "renderer")) c->renderer_sdl = !SDL_strcasecmp(v, "sdl");
         } else if (!strcmp(section, "sound")) {
-            if (!strcmp(k, "sound")) {
+            if (!strcmp(k, "adlib_instruments")) {
+                for (int i = 0; i < ADLIB_STYLES; i++) if (!SDL_strcasecmp(v, ADLIB_NAMES[i])) c->adlib_style = i;
+            } else if (!strcmp(k, "sound")) {
                 if (!SDL_strcasecmp(v, "pcspeaker") || !SDL_strcasecmp(v, "pc") || !SDL_strcasecmp(v, "speaker")) c->sound = 1;
                 else if (!SDL_strcasecmp(v, "off") || !strcmp(v, "0")) c->sound = 0;
+                else if (!SDL_strcasecmp(v, "adlib")) c->sound = 4;
                 else c->sound = 3;
             }
             else if (!strcmp(k, "volume")) c->volume = atoi(v);
@@ -309,6 +323,7 @@ typedef struct {
     int arrows_down[9];
     SDL_AudioStream *audio;
     Synth synth;
+    AdlibSynth adlib;
     int keyq[32], keyq_n;
 } App;
 
@@ -508,7 +523,8 @@ static void host_sound_play(AgiHost *h, const uint8_t *d, int len) {
     App *a = (App *)h->user;
     if (!a->audio) return;
     SDL_LockAudioStream(a->audio);
-    synth_start(&a->synth, d, len);
+    if (a->cfg.sound == 4) adlib_start(&a->adlib, d, len);
+    else synth_start(&a->synth, d, len);
     SDL_UnlockAudioStream(a->audio);
 }
 static void host_sound_stop(AgiHost *h) {
@@ -516,6 +532,7 @@ static void host_sound_stop(AgiHost *h) {
     if (!a->audio) return;
     SDL_LockAudioStream(a->audio);
     synth_stop(&a->synth);
+    adlib_stop(&a->adlib);
     SDL_UnlockAudioStream(a->audio);
 }
 
@@ -526,7 +543,8 @@ static void SDLCALL audio_cb(void *ud, SDL_AudioStream *s, int additional, int t
     while (additional > 0) {
         int n = additional / 2;
         if (n > 4096) n = 4096;
-        synth_render(&a->synth, buf, n);
+        if (a->cfg.sound == 4) adlib_render(&a->adlib, buf, n);
+        else synth_render(&a->synth, buf, n);
         SDL_PutAudioStreamData(s, buf, n * 2);
         additional -= n * 2;
     }
@@ -840,14 +858,29 @@ static void handle_event(App *a, SDL_Event *ev) {
         }
         if (k == SDLK_F4 && ctrl) {
             if (ev->key.repeat || !a->cfg.sound) break;
-            a->cfg.sound = a->cfg.sound == 3 ? 1 : 3;
+            /* tandy -> adlib -> pcspeaker -> tandy; a sound that is playing
+             * starts again in the new sound */
             if (a->audio) SDL_LockAudioStream(a->audio);
+            static uint8_t snd[65536];
+            int playing = 0, len = 0;
+            if (a->cfg.sound == 4 && a->adlib.playing) { playing = 1; len = a->adlib.len; memcpy(snd, a->adlib.data, len); }
+            else if (a->cfg.sound != 4 && a->synth.playing) { playing = 1; len = a->synth.len; memcpy(snd, a->synth.data, len); }
+            synth_stop(&a->synth);
+            adlib_stop(&a->adlib);
+            a->cfg.sound = a->cfg.sound == 3 ? 4 : a->cfg.sound == 4 ? 1 : 3;
             a->synth.pcspeaker = a->cfg.sound == 1;
+            if (playing) {
+                if (a->cfg.sound == 4) adlib_start(&a->adlib, snd, len);
+                else synth_start(&a->synth, snd, len);
+            }
             if (a->audio) SDL_UnlockAudioStream(a->audio);
-            e->sound_mode = a->cfg.sound;
-            e->var[V_SOUNDGEN] = (uint8_t)a->cfg.sound;
-            ini_set(a->ini_path, "sound", "sound", a->cfg.sound == 1 ? "pcspeaker" : "tandy");
-            set_status(a, a->cfg.sound == 1 ? "Sound: PC speaker" : "Sound: PCjr / Tandy");
+            e->sound_mode = a->cfg.sound == 1 ? 1 : 3;
+            e->var[V_SOUNDGEN] = (uint8_t)e->sound_mode;
+            ini_set(a->ini_path, "sound", "sound", a->cfg.sound == 1 ? "pcspeaker" : a->cfg.sound == 4 ? "adlib" : "tandy");
+            char msg[64];
+            if (a->cfg.sound == 4) snprintf(msg, sizeof msg, "Sound: AdLib (%s)", ADLIB_NAMES[a->cfg.adlib_style]);
+            else snprintf(msg, sizeof msg, "%s", a->cfg.sound == 1 ? "Sound: PC speaker" : "Sound: PCjr / Tandy");
+            set_status(a, msg);
             break;
         }
         if (k == SDLK_F5 && ctrl) {
@@ -1029,6 +1062,7 @@ int main(int argc, char **argv) {
     open_first_pad(a);
 
     synth_init(&a->synth, 44100);
+    adlib_init(&a->adlib, 44100, a->cfg.adlib_style);
     a->synth.pcspeaker = a->cfg.sound == 1;
     eng.sound_mode = a->cfg.sound == 1 ? 1 : 3;
     if (a->cfg.sound) {
