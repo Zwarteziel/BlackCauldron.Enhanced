@@ -901,6 +901,13 @@ int agi_cycle(Agi *e) {
     }
     memset(e->ctrl, 0, sizeof e->ctrl);
     int entered = e->flag[FL_NEW_ROOM] && !e->restart;
+    /* sound switched off (F2, or the menu): end the sound that is playing,
+     * as the original does; a long sound such as the river would otherwise
+     * go on until its end */
+    if (!e->flag[FL_SOUND] && e->sound_flag >= 0) {
+        if (e->host->sound_stop) e->host->sound_stop(e->host);
+        agi_sound_done(e);
+    }
     ego->dir = e->var[V_EGO_DIR];
     e->var[V_OBJ_BORDER_NR] = 0;
     e->var[V_OBJ_BORDER] = 0;
