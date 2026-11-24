@@ -99,3 +99,11 @@ The Windows build is cross-compiled on Linux with clang, lld, mingw-w64 (built f
 - Icon (`src/bce.ico`, `art/icon32.png`): original pixel art made for this project, GPL-3.0-or-later like the rest.
 - The Black Cauldron is (c) Sierra On-Line and The Walt Disney Company. No game
   files are included.
+
+##
+
+<img width="1199" height="790" alt="bc4_2" src="https://github.com/user-attachments/assets/1f189e85-aab2-4b6d-aa82-22a8be0165fd" />
+
+##
+
+<img width="1201" height="792" alt="bc2" src="https://github.com/user-attachments/assets/f049bf64-fbc6-49f8-b0a2-55dcc129878d" />
